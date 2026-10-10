@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# pier — get your attention through Pier's dock from scripts and AI agents.
+#
+#   pier notify --message "Build finished"        bounce once, glow, show a callout
+#   pier bounce --times 5                         bounce (default 3); --until-opened keeps going
+#   pier badge --text ✓ --color "#34C759"         set a badge; --sticky keeps it after opening the app
+#   pier flash                                    pulse a glow behind the icon
+#   pier clear [--all]                            remove everything for the app (or every app)
+#
+# --app takes a bundle id, app name or path. Without it, pier targets the app that launched it
+# (your terminal, or Claude) via $__CFBundleIdentifier, falling back to $PIER_APP.
+set -euo pipefail
+
+usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; }
+
+[[ $# -ge 1 ]] || { usage; exit 2; }
+action="$1"; shift
+case "$action" in
+  notify|bounce|badge|flash|clear) ;;
+  help|-h|--help) usage; exit 0 ;;
+  *) echo "pier: unknown command '$action'" >&2; usage >&2; exit 2 ;;
+esac
+
+app="${PIER_APP:-${__CFBundleIdentifier:-}}"
+params=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --app) app="$2"; shift 2 ;;
+    --all) app="all"; shift ;;
+    --times) params+=("times=$2"); shift 2 ;;
+    --until-opened) params+=("until=opened"); shift ;;
+    --text|--badge) params+=("text=$2"); shift 2 ;;
+    --color) params+=("color=$2"); shift 2 ;;
+    --message|-m) params+=("message=$2"); shift 2 ;;
+    --sticky) params+=("sticky=1"); shift ;;
+    *) echo "pier: unknown option '$1'" >&2; exit 2 ;;
+  esac
+done
+[[ -n "$app" ]] || { echo "pier: no app given (use --app or set PIER_APP)" >&2; exit 2; }
+
+# Percent-encode one query value (bytes-safe, pure bash).
+encode() {
+  local LC_ALL=C s="$1" out="" c i
+  for (( i = 0; i < ${#s}; i++ )); do
+    c="${s:i:1}"
+    case "$c" in
+      [a-zA-Z0-9.~_-]) out+="$c" ;;
+      # printf "'c" yields a signed byte for UTF-8 continuation bytes; mask to 0-255.
+      *) out+=$(printf '%%%02X' $(( $(printf '%d' "'$c") & 0xFF ))) ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+
+query="app=$(encode "$app")"
+for p in "${params[@]+"${params[@]}"}"; do
+  query+="&${p%%=*}=$(encode "${p#*=}")"
+done
+
+# -g: don't bring Pier (or anything) to the front.
+open -g "pier://$action?$query"

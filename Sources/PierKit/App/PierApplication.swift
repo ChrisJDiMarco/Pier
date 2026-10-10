@@ -63,8 +63,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Double-clicking a .piertheme file imports and applies it.
     func application(_ application: NSApplication, open urls: [URL]) {
+        // pier://bounce?app=… from scripts and agents (see `pier help`).
+        for url in urls where url.scheme?.lowercased() == "pier" {
+            AttentionService.shared.handle(url)
+        }
         var imported = 0
-        for url in urls where ["piertheme", "json"].contains(url.pathExtension.lowercased()) {
+        for url in urls where url.isFileURL && ["piertheme", "json"].contains(url.pathExtension.lowercased()) {
             if (try? store.importTheme(from: url)) != nil { imported += 1 }
         }
         if imported > 0 { SettingsWindowController.shared.show(pane: .themes) }

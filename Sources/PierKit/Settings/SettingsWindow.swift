@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, appearance, themes, items, widgets, clicks, permissions, about
+    case general, appearance, themes, items, widgets, clicks, automation, permissions, about
     var id: String { rawValue }
 
     var title: String {
@@ -13,6 +13,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .items: return "Dock Items"
         case .widgets: return "Widgets"
         case .clicks: return "Click Actions"
+        case .automation: return "Automation"
         case .permissions: return "Permissions"
         case .about: return "About"
         }
@@ -26,6 +27,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .items: return "square.grid.3x1.below.line.grid.1x2"
         case .widgets: return "rectangle.3.group"
         case .clicks: return "cursorarrow.click.2"
+        case .automation: return "bell.badge"
         case .permissions: return "lock.shield"
         case .about: return "info.circle"
         }
@@ -94,6 +96,7 @@ struct SettingsRootView: View {
                 case .items: ItemsPane()
                 case .widgets: WidgetsPane()
                 case .clicks: ClickActionsPane()
+                case .automation: AutomationPane()
                 case .permissions: PermissionsPane()
                 case .about: AboutPane()
                 }

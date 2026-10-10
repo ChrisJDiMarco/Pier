@@ -46,6 +46,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Pier"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+install -m 755 Resources/pier "$APP/Contents/Resources/pier"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD_NUMBER/" Resources/Info.plist > "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 

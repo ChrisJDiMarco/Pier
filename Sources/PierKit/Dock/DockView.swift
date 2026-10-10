@@ -38,6 +38,7 @@ struct DockRootView: View {
             }
 
             RunningIndicators(geometry: geo)
+            AttentionBubbles(geometry: geo, theme: theme)
 
             if store.settings.showLabels, let id = controller.hoveredID, controller.pressedID == nil,
                !PopupController.shared.isShowing, let entry = controller.entry(id), let placed = geo.element(id),
@@ -210,6 +211,7 @@ struct HoverLabel: View {
     let theme: Theme
     let rect: CGRect
     let position: DockPosition
+    var isMessage = false
 
     private let gap: CGFloat = 12
     private let slot: CGFloat = 420
@@ -230,15 +232,57 @@ struct HoverLabel: View {
     }
 
     private var bubble: some View {
-        Text(text)
-            .font(.system(size: 12.5, weight: .medium))
-            .foregroundStyle(.primary)
-            .lineLimit(1)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(.regularMaterial, in: Capsule())
-            .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 0.5))
-            .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
-            .fixedSize()
+        HStack(spacing: 6) {
+            if isMessage {
+                Circle().fill(Color.accentColor).frame(width: 6, height: 6)
+            }
+            Text(text)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(.primary)
+                .lineLimit(isMessage ? 2 : 1)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: isMessage ? 260 : nil, alignment: .leading)
+                .fixedSize(horizontal: !isMessage, vertical: true)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(.regularMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
+        .fixedSize()
+    }
+}
+
+/// Messages sent with `pier notify --message …`, shown as callouts above the icon that asked.
+struct AttentionBubbles: View {
+    let geometry: DockGeometry
+    let theme: Theme
+    @EnvironmentObject var controller: DockController
+    @ObservedObject private var attention = AttentionService.shared
+
+    var body: some View {
+        ForEach(bubbles(), id: \.id) { bubble in
+            HoverLabel(text: bubble.text, theme: theme, rect: bubble.rect, position: geometry.position, isMessage: true)
+                .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
+                .allowsHitTesting(false)
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: attention.messages)
+    }
+
+    private struct Bubble { let id: String; let text: String; let rect: CGRect }
+
+    private func bubbles() -> [Bubble] {
+        guard !attention.messages.isEmpty else { return [] }
+        return controller.entries.compactMap { entry in
+            guard entry.id != controller.hoveredID, let placed = geometry.element(entry.id) else { return nil }
+            let keys: [String]
+            switch entry.kind {
+            case .running(let app): keys = [app.ref.key]
+            case .item(let item): keys = item.appRef.map { [$0.key] } ?? item.folder?.apps.map(\.key) ?? []
+            default: return nil
+            }
+            guard let text = keys.lazy.compactMap({ attention.messages[$0] }).first else { return nil }
+            return Bubble(id: entry.id, text: text, rect: placed.rect)
+        }
     }
 }

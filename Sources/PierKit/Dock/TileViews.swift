@@ -8,10 +8,12 @@ struct AppTileView: View {
     @EnvironmentObject var badges: BadgeService
     @EnvironmentObject var running: RunningAppsService
     @EnvironmentObject var store: PierStore
+    @ObservedObject private var attention = AttentionService.shared
 
     var body: some View {
         let _ = icons.revision
-        let bouncing = store.settings.launchBounce && running.launching.contains(ref.key)
+        let launching = store.settings.launchBounce && running.launching.contains(ref.key)
+        let bouncing = launching || attention.bouncing.contains(ref.key)
         BounceContainer(active: bouncing, amplitude: size * 0.38, position: store.settings.position) {
             Image(nsImage: icons.icon(for: ref))
                 .resizable()
@@ -19,14 +21,38 @@ struct AppTileView: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(width: size, height: size)
                 .shadow(color: .black.opacity(0.16), radius: size * 0.035, y: size * 0.02)
+                .background(AttentionGlow(active: attention.flashing.contains(ref.key), size: size))
         }
         .overlay(alignment: .topTrailing) {
-            if store.settings.showBadges, let badge = badges.badge(for: ref) {
+            if let agent = attention.badge(for: ref) {
+                BadgeView(text: agent.text, size: size,
+                          color: store.theme.color(agent.color ?? store.theme.badgeColor))
+            } else if store.settings.showBadges, let badge = badges.badge(for: ref) {
                 BadgeView(text: badge, size: size, color: store.theme.color(store.theme.badgeColor))
             }
         }
         .accessibilityElement()
         .accessibilityLabel(ref.name)
+    }
+}
+
+/// A soft pulsing halo behind an icon that's asking for attention.
+struct AttentionGlow: View {
+    let active: Bool
+    let size: CGFloat
+
+    var body: some View {
+        if active {
+            TimelineView(.animation) { context in
+                let t = context.date.timeIntervalSinceReferenceDate
+                let pulse = (sin(t * .pi * 2.5) + 1) / 2
+                RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.35 + 0.35 * pulse))
+                    .blur(radius: size * (0.12 + 0.08 * pulse))
+                    .scaleEffect(1.05 + 0.1 * pulse)
+            }
+            .transition(.opacity)
+        }
     }
 }
 
@@ -88,6 +114,7 @@ struct FolderTileView: View {
     @EnvironmentObject var icons: IconService
     @EnvironmentObject var badges: BadgeService
     @EnvironmentObject var store: PierStore
+    @ObservedObject private var attention = AttentionService.shared
 
     var body: some View {
         let _ = icons.revision
@@ -97,19 +124,24 @@ struct FolderTileView: View {
         let inset = well * 0.13
         let gap = well * 0.07
         let cell = (well - inset * 2 - gap) / 2
-        ZStack {
-            WellBackground(theme: theme, radius: well * 0.26)
-            LazyVGrid(columns: [GridItem(.fixed(cell), spacing: gap), GridItem(.fixed(cell))], spacing: gap) {
-                ForEach(Array(folder.apps.prefix(4).enumerated()), id: \.offset) { _, app in
-                    Image(nsImage: icons.icon(for: app))
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: cell, height: cell)
+        let keys = Set(folder.apps.map(\.key))
+        BounceContainer(active: !attention.bouncing.isDisjoint(with: keys), amplitude: size * 0.38,
+                        position: store.settings.position) {
+            ZStack {
+                WellBackground(theme: theme, radius: well * 0.26)
+                LazyVGrid(columns: [GridItem(.fixed(cell), spacing: gap), GridItem(.fixed(cell))], spacing: gap) {
+                    ForEach(Array(folder.apps.prefix(4).enumerated()), id: \.offset) { _, app in
+                        Image(nsImage: icons.icon(for: app))
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: cell, height: cell)
+                    }
                 }
+                .padding(inset)
             }
-            .padding(inset)
+            .frame(width: well, height: well)
+            .background(AttentionGlow(active: !attention.flashing.isDisjoint(with: keys), size: well))
         }
-        .frame(width: well, height: well)
         .frame(width: size, height: size)
             .overlay(alignment: .topTrailing) {
                 if store.settings.showBadges, let total = combinedBadge {
@@ -121,7 +153,7 @@ struct FolderTileView: View {
     }
 
     private var combinedBadge: String? {
-        let values = folder.apps.compactMap { badges.badge(for: $0) }
+        let values = folder.apps.compactMap { attention.badge(for: $0)?.text ?? badges.badge(for: $0) }
         guard !values.isEmpty else { return nil }
         let numbers = values.compactMap { Int($0) }
         return numbers.count == values.count ? String(numbers.reduce(0, +)) : "•"

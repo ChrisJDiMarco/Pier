@@ -272,12 +272,15 @@ public final class DockController: ObservableObject {
             return
         }
         let resting = isRevealed && (window?.targetScreen.map { atEdge(mouse, of: $0) } ?? false)
-        let busy = inside || resting || draggingPayload != nil || PopupController.shared.isShowing
+        // Like the macOS Dock, an auto-hidden dock slides up while an app is asking for attention.
+        let attention = AttentionService.shared
+        let wantsAttention = !attention.bouncing.isEmpty || !attention.messages.isEmpty
+        let busy = inside || resting || wantsAttention || draggingPayload != nil || PopupController.shared.isShowing
             || window?.isTrackingMenu == true
         if busy {
             hideWork?.cancel()
             hideWork = nil
-            if !isRevealed && inside { setRevealed(true) }
+            if !isRevealed && (inside || wantsAttention) { setRevealed(true) }
             return
         }
         if !isRevealed, let screen = window?.targetScreen, atEdge(mouse, of: screen) {
