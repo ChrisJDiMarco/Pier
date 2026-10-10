@@ -18,6 +18,7 @@ struct AppTileView: View {
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fit)
                 .frame(width: size, height: size)
+                .shadow(color: .black.opacity(0.16), radius: size * 0.035, y: size * 0.02)
         }
         .overlay(alignment: .topTrailing) {
             if store.settings.showBadges, let badge = badges.badge(for: ref) {

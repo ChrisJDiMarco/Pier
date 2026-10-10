@@ -73,6 +73,7 @@ public final class DockController: ObservableObject {
     @Published public private(set) var geometry: DockGeometry = .empty
     @Published public private(set) var hoveredID: String?
     @Published public var pressedID: String?
+    @Published public var pressedControl: NowPlayingControl?
     @Published public private(set) var dropOntoID: String?
     @Published public private(set) var isRevealed = true
     @Published public private(set) var isHovering = false
@@ -96,6 +97,8 @@ public final class DockController: ObservableObject {
     private var bag = Set<AnyCancellable>()
     private var lastEdgeHit = Date.distantPast
     private var placement: (DockPosition, ScreenMode)?
+    /// Fraction of the remaining distance the magnification moves per frame (60 Hz): ~100 ms to settle.
+    private let pointerEasing: CGFloat = 0.42
 
     private init() {}
 
@@ -215,9 +218,14 @@ public final class DockController: ObservableObject {
                 pointer = desired
                 recomputeGeometry()
             }
-        } else if let desired, let current = pointer, abs(geometry.along(current) - geometry.along(desired)) > 0.2 {
-            pointer = desired
-            recomputeGeometry()
+        } else if let desired, let current = pointer {
+            // Ease the magnification wave toward the pointer instead of snapping to it each frame.
+            let now = geometry.along(current), target = geometry.along(desired)
+            if abs(target - now) > 0.2 {
+                let next = now + (target - now) * pointerEasing
+                pointer = position.isVertical ? CGPoint(x: desired.x, y: next) : CGPoint(x: next, y: desired.y)
+                recomputeGeometry()
+            }
         }
 
         let hit = inside ? geometry.hit(p, spacing: metrics.spacing)?.id : nil

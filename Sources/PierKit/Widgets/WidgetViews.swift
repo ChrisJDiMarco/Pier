@@ -4,13 +4,15 @@ struct WidgetView: View {
     let kind: WidgetKind
     let size: CGSize
     let vertical: Bool
+    var hovered = false
     @EnvironmentObject var store: PierStore
 
     var body: some View {
         let theme = store.theme
         let radius = min(size.width, size.height) * 0.26
         ZStack {
-            WellBackground(theme: theme, radius: radius)
+            WellBackground(theme: theme, radius: radius, lift: hovered ? 0.1 : 0)
+                .animation(.easeOut(duration: 0.18), value: hovered)
             switch kind {
             case .clock: ClockWidget(size: size, theme: theme, settings: store.settings)
             case .nowPlaying: NowPlayingWidget(size: size, theme: theme, compact: vertical)
@@ -27,10 +29,11 @@ struct WidgetView: View {
 struct WellBackground: View {
     let theme: Theme
     let radius: CGFloat
+    var lift: Double = 0
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        let fill = theme.widgetFillOpacity
+        let fill = theme.widgetFillOpacity + lift
         shape
             .fill(LinearGradient(colors: [theme.color(theme.widgetFill, min(1, fill + 0.08)),
                                           theme.color(theme.widgetFill, max(0, fill - 0.06))],
@@ -90,11 +93,13 @@ struct NowPlayingWidget: View {
     let theme: Theme
     let compact: Bool
     @ObservedObject private var player = NowPlayingService.shared
+    @EnvironmentObject private var dock: DockController
 
     var body: some View {
         Group {
             if compact { compactBody } else { fullBody }
         }
+        .animation(.easeInOut(duration: 0.35), value: player.current?.title)
         .onAppear { player.start() }
         .onDisappear { player.stop() }
     }
@@ -107,6 +112,8 @@ struct NowPlayingWidget: View {
                 .fill(Color(hex: "#F4EFEA"))
             if let art = player.artwork {
                 Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
+                    .id(player.current?.artworkKey ?? "")
+                    .transition(.opacity)
             } else {
                 Image(systemName: "music.note").font(.system(size: artSide * 0.4, weight: .semibold))
                     .foregroundStyle(theme.secondaryText)
@@ -115,20 +122,23 @@ struct NowPlayingWidget: View {
         .frame(width: artSide, height: artSide)
         .clipShape(RoundedRectangle(cornerRadius: artSide * 0.22, style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
-        .onTapGesture { player.openSourceApp() }
     }
 
     private var fullBody: some View {
         HStack(spacing: size.height * 0.14) {
             artwork
             VStack(alignment: .leading, spacing: size.height * 0.02) {
-                Text(player.current?.title ?? "Not Playing")
+                Group {
+                    Text(player.current?.title ?? "Not Playing")
                     .font(.system(size: size.height * 0.17, weight: .bold))
                     .foregroundStyle(theme.text)
-                Text(player.current?.artist ?? "Music or Spotify")
-                    .font(.system(size: size.height * 0.135, weight: .medium))
-                    .foregroundStyle(theme.secondaryText)
-                TimelineView(.periodic(from: .now, by: 0.5)) { context in
+                    Text(player.current?.artist ?? "Music or Spotify")
+                        .font(.system(size: size.height * 0.135, weight: .medium))
+                        .foregroundStyle(theme.secondaryText)
+                }
+                .id(player.current?.title ?? "")
+                .transition(.opacity)
+                TimelineView(.periodic(from: .now, by: 1)) { context in
                     ProgressBar(progress: progress(at: context.date), color: theme.text)
                 }
                 .frame(width: size.height * 1.3, height: max(2.5, size.height * 0.035))
@@ -137,41 +147,37 @@ struct NowPlayingWidget: View {
             }
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: size.height * 0.05) {
-                control("chevron.left", scale: 0.13) { player.previous() }
-                control(player.current?.isPlaying == true ? "pause.fill" : "play.fill", scale: 0.14) {
-                    player.togglePlayPause()
-                }
-                control("chevron.right", scale: 0.13) { player.next() }
+            HStack(spacing: NowPlayingLayout.controlSpacing(size)) {
+                control("chevron.left", .previous, scale: 0.13)
+                control(player.current?.isPlaying == true ? "pause.fill" : "play.fill", .playPause, scale: 0.15)
+                control("chevron.right", .next, scale: 0.13)
             }
         }
         .padding(.leading, (size.height - artSide) / 2)
-        .padding(.trailing, size.height * 0.1)
+        .padding(.trailing, NowPlayingLayout.trailingPadding(size))
     }
 
     private var compactBody: some View {
         artwork.overlay {
-            Button { player.togglePlayPause() } label: {
-                Image(systemName: player.current?.isPlaying == true ? "pause.fill" : "play.fill")
-                    .font(.system(size: artSide * 0.32, weight: .bold))
-                    .foregroundStyle(.white)
-                    .shadow(radius: 3)
-            }
-            .buttonStyle(.plain)
+            Image(systemName: player.current?.isPlaying == true ? "pause.fill" : "play.fill")
+                .font(.system(size: artSide * 0.3, weight: .bold))
+                .foregroundStyle(.white)
+                .shadow(radius: 3)
         }
     }
 
-    private func control(_ symbol: String, scale: CGFloat, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: size.height * scale, weight: .semibold))
-                .foregroundStyle(theme.secondaryText)
-                .frame(width: size.height * 0.24, height: size.height * 0.4)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(PressableStyle())
-        .disabled(player.current == nil)
-        .opacity(player.current == nil ? 0.5 : 1)
+    /// Drawn only; clicks are hit-tested by the dock against `NowPlayingLayout` (same rects).
+    private func control(_ symbol: String, _ kind: NowPlayingControl, scale: CGFloat) -> some View {
+        let pressed = dock.pressedControl == kind && dock.pressedID != nil
+        return Image(systemName: symbol)
+            .font(.system(size: size.height * scale, weight: .semibold))
+            .foregroundStyle(pressed ? theme.text : theme.secondaryText)
+            .contentTransition(.symbolEffect(.replace))
+            .frame(width: NowPlayingLayout.controlWidth(size), height: size.height * 0.42)
+            .background(Circle().fill(theme.color(theme.textColor, pressed ? 0.12 : 0)).padding(2))
+            .scaleEffect(pressed ? 0.82 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.6), value: pressed)
+            .opacity(player.current == nil ? 0.45 : 1)
     }
 
     private func progress(at date: Date) -> Double {

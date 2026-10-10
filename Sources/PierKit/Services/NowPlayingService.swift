@@ -63,6 +63,27 @@ public final class NowPlayingService: ObservableObject {
     public func next() { send(.next) }
     public func previous() { send(.previous) }
 
+    /// Jumps to a position in the current track (seconds).
+    public func seek(to seconds: Double) {
+        guard var c = current else { return }
+        let target = seconds.clamped(0, max(0, c.duration))
+        if let id = c.sourceBundleID, let player = ScriptedPlayer(bundleID: id) {
+            let value = String(format: "%.2f", target)
+            scriptQueue.async { _ = ScriptedPlayer.run("tell application id \"\(player.bundleID)\" to set player position to \(value)") }
+        } else {
+            remote.seek(target)
+        }
+        c.elapsed = target
+        tickAnchor = Date()
+        current = c
+    }
+
+    public var sourceAppName: String? {
+        guard let id = current?.sourceBundleID,
+              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return nil }
+        return FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
+    }
+
     public func openSourceApp() {
         guard let id = current?.sourceBundleID,
               let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id),
@@ -208,10 +229,12 @@ private final class MediaRemote {
     private typealias GetInfoFn = @convention(c) (DispatchQueue, @escaping @convention(block) (NSDictionary?) -> Void) -> Void
     private typealias GetPIDFn = @convention(c) (DispatchQueue, @escaping @convention(block) (Int32) -> Void) -> Void
     private typealias SendFn = @convention(c) (Int32, CFDictionary?) -> Bool
+    private typealias SeekFn = @convention(c) (Double) -> Void
 
     private let getInfo: GetInfoFn?
     private let getPID: GetPIDFn?
     private let sendCommand: SendFn?
+    private let setElapsed: SeekFn?
 
     init() {
         let handle = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_LAZY)
@@ -222,6 +245,11 @@ private final class MediaRemote {
         getInfo = load("MRMediaRemoteGetNowPlayingInfo", as: GetInfoFn.self)
         getPID = load("MRMediaRemoteGetNowPlayingApplicationPID", as: GetPIDFn.self)
         sendCommand = load("MRMediaRemoteSendCommand", as: SendFn.self)
+        setElapsed = load("MRMediaRemoteSetElapsedTime", as: SeekFn.self)
+    }
+
+    func seek(_ seconds: Double) {
+        setElapsed?(seconds)
     }
 
     func send(_ command: Int32) {

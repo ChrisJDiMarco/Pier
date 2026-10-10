@@ -63,10 +63,12 @@ struct EntryView: View {
     @EnvironmentObject var store: PierStore
 
     var body: some View {
+        let pressed = controller.pressedID == entry.id && controller.pressedControl == nil && !isWidget
         content
-            .scaleEffect(controller.dropOntoID == entry.id ? 1.12 : 1)
-            .brightness(controller.pressedID == entry.id ? -0.22 : 0)
+            .scaleEffect(controller.dropOntoID == entry.id ? 1.12 : (pressed ? 0.9 : 1))
+            .brightness(pressed ? -0.12 : 0)
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: controller.dropOntoID)
+            .animation(.spring(response: 0.2, dampingFraction: 0.62), value: pressed)
     }
 
     @ViewBuilder private var content: some View {
@@ -80,7 +82,8 @@ struct EntryView: View {
             case .stack(let path): StackTileView(path: path, size: iconSide)
             case .trash: TrashTileView(size: iconSide)
             case .widget(let kind):
-                WidgetView(kind: kind, size: placed.rect.size, vertical: store.settings.position.isVertical)
+                WidgetView(kind: kind, size: placed.rect.size, vertical: store.settings.position.isVertical,
+                           hovered: controller.hoveredID == entry.id)
             case .separator: DividerView(vertical: store.settings.position.isVertical)
             }
         case .divider:
@@ -91,6 +94,11 @@ struct EntryView: View {
     }
 
     private var iconSide: CGFloat { min(placed.rect.width, placed.rect.height) }
+
+    private var isWidget: Bool {
+        if case .widget = placed.kind { return true }
+        return false
+    }
 }
 
 struct DividerView: View {

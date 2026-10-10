@@ -25,13 +25,8 @@ final class DockInteractionView: NSView, NSDraggingSource {
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    /// Let interactive widgets (Now Playing controls) receive their own clicks.
     override func hitTest(_ point: NSPoint) -> NSView? {
         let local = convert(point, from: superview)
-        if let el = controller.geometry.hit(local, spacing: controller.metrics.spacing),
-           case .widget(let kind) = el.kind, kind.isInteractive {
-            return nil
-        }
         return controller.geometry.isInsideDock(local, slop: 4) ? self : nil
     }
 
@@ -47,6 +42,7 @@ final class DockInteractionView: NSView, NSDraggingSource {
         mouseDownEntry = entryID(at: event)
         didDrag = false
         controller.pressedID = mouseDownEntry
+        if let id = mouseDownEntry, let start = mouseDownPoint { controller.pressBegan(id, at: start) }
         if mouseDownEntry == nil { PopupController.shared.dismiss() }
         if event.modifierFlags.contains(.control), let id = mouseDownEntry {
             controller.pressedID = nil
@@ -61,12 +57,14 @@ final class DockInteractionView: NSView, NSDraggingSource {
         guard hypot(p.x - start.x, p.y - start.y) > dragThreshold else { return }
         didDrag = true
         controller.pressedID = nil
+        controller.pressedControl = nil
         beginDrag(entryID: id, event: event)
     }
 
     override func mouseUp(with event: NSEvent) {
         defer {
             controller.pressedID = nil
+            controller.pressedControl = nil
             mouseDownEntry = nil
             mouseDownPoint = nil
         }
@@ -77,7 +75,8 @@ final class DockInteractionView: NSView, NSDraggingSource {
         else if flags.contains(.option) { trigger = .optionClick }
         else if flags.contains(.shift) { trigger = .shiftClick }
         else { trigger = .click }
-        if controller.handleClick(id, trigger: trigger) { showMenu(for: id, event: event) }
+        let point = convert(event.locationInWindow, from: nil)
+        if controller.handleClick(id, trigger: trigger, at: point) { showMenu(for: id, event: event) }
     }
 
     override func otherMouseUp(with event: NSEvent) {

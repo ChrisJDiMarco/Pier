@@ -80,9 +80,6 @@ public enum WidgetKind: String, Codable, CaseIterable, Sendable, Identifiable {
         case .battery: return 1.2
         }
     }
-
-    /// Widgets with their own buttons receive clicks directly instead of through the dock.
-    public var isInteractive: Bool { self == .nowPlaying }
 }
 
 public enum DockItemContent: Codable, Hashable, Sendable {

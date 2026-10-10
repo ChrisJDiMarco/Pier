@@ -33,6 +33,9 @@ final class DockWindow: NSPanel {
             .environmentObject(RunningAppsService.shared)
             .environmentObject(BadgeService.shared)
             .environmentObject(IconService.shared))
+        // The window's frame is set explicitly, so skip SwiftUI's size-constraint pass. Otherwise every
+        // small update (a clock tick, the progress bar) re-measures the whole dock.
+        hosting.sizingOptions = []
         hosting.translatesAutoresizingMaskIntoConstraints = false
         interaction.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(hosting)

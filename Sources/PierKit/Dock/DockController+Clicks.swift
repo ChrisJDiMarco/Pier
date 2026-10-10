@@ -1,12 +1,32 @@
 import AppKit
 import SwiftUI
+import os
+
+enum ClickLog {
+    static let log = Logger(subsystem: "com.logicoutloud.Pier", category: "click")
+}
 
 extension DockController {
 
+    /// Highlights the Now Playing button under the pointer while the mouse is down.
+    func pressBegan(_ entryID: String, at point: CGPoint) {
+        pressedControl = nowPlayingControl(entryID, at: point)
+    }
+
+    private func nowPlayingControl(_ entryID: String, at point: CGPoint?) -> NowPlayingControl? {
+        guard let point, !position.isVertical, let el = geometry.element(entryID),
+              el.kind == .widget(.nowPlaying), NowPlayingService.shared.current != nil
+        else { return nil }
+        let local = CGPoint(x: point.x - el.rect.minX, y: point.y - el.rect.minY)
+        return NowPlayingLayout.control(at: local, in: el.rect.size)
+    }
+
     /// Returns true when the trigger wants the context menu instead (handled by the interaction view).
-    func handleClick(_ entryID: String, trigger: ClickTrigger) -> Bool {
+    /// `point` is in dock-container coordinates, used for sub-targets inside widgets.
+    func handleClick(_ entryID: String, trigger: ClickTrigger, at point: CGPoint? = nil) -> Bool {
         guard let entry = entry(entryID) else { return false }
         cancelPendingPreview()
+        ClickLog.log.notice("click \(entryID, privacy: .public) \(trigger.rawValue, privacy: .public)")
 
         if let ref = entry.appRef {
             let action = settings.action(for: trigger)
@@ -25,10 +45,35 @@ extension DockController {
         case .trash:
             PopupController.shared.dismiss()
             NSWorkspace.shared.open(FileManager.default.urls(for: .trashDirectory, in: .userDomainMask)[0])
-        case .widget(let kind): openWidgetApp(kind)
+        case .widget(let kind):
+            if kind == .nowPlaying, let control = nowPlayingControl(entryID, at: point) {
+                let player = NowPlayingService.shared
+                switch control {
+                case .previous: player.previous()
+                case .playPause: player.togglePlayPause()
+                case .next: player.next()
+                }
+            } else if kind == .battery {
+                openWidgetApp(kind)
+            } else {
+                toggleWidgetPopup(item.id, kind: kind)
+            }
         default: break
         }
         return false
+    }
+
+    func toggleWidgetPopup(_ id: UUID, kind: WidgetKind) {
+        if PopupController.shared.isShowing(.widget(id)) { return PopupController.shared.dismiss() }
+        guard let anchor = screenRect(of: id.uuidString) else { return }
+        let view: AnyView
+        switch kind {
+        case .nowPlaying: view = AnyView(NowPlayingPopupView().environmentObject(store))
+        case .clock: view = AnyView(CalendarPopupView().environmentObject(store))
+        case .weather: view = AnyView(WeatherPopupView().environmentObject(store))
+        case .battery: return openWidgetApp(kind)
+        }
+        PopupController.shared.show(.widget(id), anchor: anchor, position: settings.position, theme: theme) { view }
     }
 
     func perform(_ action: ClickAction, on ref: AppRef, entry: DisplayEntry) {
@@ -62,7 +107,7 @@ extension DockController {
         }
     }
 
-    private func openWidgetApp(_ kind: WidgetKind) {
+    func openWidgetApp(_ kind: WidgetKind) {
         switch kind {
         case .clock:
             NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Calendar.app"))

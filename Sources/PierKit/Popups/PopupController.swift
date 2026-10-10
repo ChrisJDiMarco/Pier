@@ -5,6 +5,7 @@ enum PopupKind: Equatable {
     case folder(UUID)
     case stack(UUID)
     case windows(String)   // dock entry id
+    case widget(UUID)
 }
 
 final class PopupPanel: NSPanel {
@@ -65,6 +66,7 @@ final class PopupController {
         self.anchor = anchor
         self.position = position
         if hoverOwned { panel.orderFrontRegardless() } else { panel.makeKeyAndOrderFront(nil) }
+        ClickLog.log.notice("popup shown \(String(describing: kind), privacy: .public) size=\(Int(size.width))x\(Int(size.height))")
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.14
             panel.animator().alphaValue = 1
@@ -87,6 +89,7 @@ final class PopupController {
         monitors.forEach(NSEvent.removeMonitor)
         monitors = []
         guard let panel else { return }
+        ClickLog.log.notice("popup dismissed \(String(describing: self.kind), privacy: .public)")
         self.panel = nil
         kind = nil
         if animated {
