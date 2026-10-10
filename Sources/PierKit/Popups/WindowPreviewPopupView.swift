@@ -1,13 +1,14 @@
 import AppKit
 import SwiftUI
 
-/// Live window thumbnails for a running app. Click to focus, hover for a close button.
+/// Live window thumbnails for a running app. Click to focus; hover for close, minimize and full-screen.
 struct WindowPreviewPopupView: View {
     let app: RunningApp
     let windows: [AppWindow]
     @EnvironmentObject var store: PierStore
     @State private var thumbnails: [CGWindowID: NSImage] = [:]
     @State private var closed: Set<CGWindowID> = []
+    @State private var minimized: Set<CGWindowID> = []
 
     private let maxThumb: CGFloat = 220
 
@@ -39,9 +40,19 @@ struct WindowPreviewPopupView: View {
                 HStack(alignment: .top, spacing: 12) {
                     ForEach(visible.prefix(8)) { window in
                         WindowCard(window: window, app: app, thumbnail: thumbnails[window.id], maxThumb: maxThumb,
-                                   theme: store.theme) {
-                            closed.insert(window.id)
-                            WindowService.shared.close(window)
+                                   theme: store.theme,
+                                   isMinimized: window.isMinimized || minimized.contains(window.id)) { action in
+                            switch action {
+                            case .close:
+                                withAnimation(.easeOut(duration: 0.2)) { _ = closed.insert(window.id) }
+                                WindowService.shared.close(window)
+                            case .minimize:
+                                withAnimation(.easeOut(duration: 0.2)) { _ = minimized.insert(window.id) }
+                                WindowService.shared.minimize(window)
+                            case .fullScreen:
+                                PopupController.shared.dismiss()
+                                WindowService.shared.toggleFullScreen(window)
+                            }
                         }
                     }
                 }
@@ -53,13 +64,16 @@ struct WindowPreviewPopupView: View {
     }
 }
 
+enum WindowCardAction { case close, minimize, fullScreen }
+
 private struct WindowCard: View {
     let window: AppWindow
     let app: RunningApp
     let thumbnail: NSImage?
     let maxThumb: CGFloat
     let theme: Theme
-    let onClose: () -> Void
+    let isMinimized: Bool
+    let onAction: (WindowCardAction) -> Void
     @State private var hovering = false
 
     var body: some View {
@@ -77,7 +91,7 @@ private struct WindowCard: View {
                     Image(nsImage: IconService.shared.icon(for: app.ref)).resizable().frame(width: 48, height: 48)
                         .opacity(0.8)
                 }
-                if window.isMinimized {
+                if isMinimized {
                     Text("Minimized").font(.system(size: 10, weight: .semibold))
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(.thinMaterial, in: Capsule())
@@ -89,20 +103,10 @@ private struct WindowCard: View {
             .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(Color.accentColor.opacity(hovering ? 0.9 : 0), lineWidth: 2))
             .overlay(alignment: .topLeading) {
-                if hovering {
-                    Button(action: onClose) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16))
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(.white, .black.opacity(0.65))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(5)
-                    .help("Close window")
-                }
+                if hovering { TrafficLights(canMinimize: !isMinimized, onAction: onAction).padding(7) }
             }
             .scaleEffect(hovering ? 1.03 : 1)
-            .opacity(window.isMinimized ? 0.6 : 1)
+            .opacity(isMinimized ? 0.6 : 1)
 
             Text(window.title.isEmpty ? app.ref.name : window.title)
                 .font(.system(size: 11.5, weight: .medium))
@@ -117,5 +121,42 @@ private struct WindowCard: View {
             PopupController.shared.dismiss()
             WindowService.shared.focus(window)
         }
+    }
+}
+
+/// macOS-style close / minimize / full-screen buttons; glyphs appear when the group is hovered.
+private struct TrafficLights: View {
+    let canMinimize: Bool
+    let onAction: (WindowCardAction) -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            light(.close, color: Color(hex: "#FF5F57"), glyph: "xmark", help: "Close window")
+            light(.minimize, color: Color(hex: "#FEBC2E"), glyph: "minus", help: "Minimize window")
+                .opacity(canMinimize ? 1 : 0.35)
+                .disabled(!canMinimize)
+            light(.fullScreen, color: Color(hex: "#28C840"), glyph: "arrow.up.left.and.arrow.down.right",
+                  help: "Toggle full screen")
+        }
+        .onHover { hovering = $0 }
+    }
+
+    private func light(_ action: WindowCardAction, color: Color, glyph: String, help: String) -> some View {
+        Button { onAction(action) } label: {
+            Circle()
+                .fill(color)
+                .overlay(Circle().strokeBorder(.black.opacity(0.18), lineWidth: 0.5))
+                .overlay {
+                    Image(systemName: glyph)
+                        .font(.system(size: 6.5, weight: .heavy))
+                        .foregroundStyle(.black.opacity(0.55))
+                        .opacity(hovering ? 1 : 0)
+                }
+                .frame(width: 13, height: 13)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
     }
 }

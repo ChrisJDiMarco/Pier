@@ -119,6 +119,19 @@ public final class WindowService {
         AX.perform(button as! AXUIElement, kAXPressAction)
     }
 
+    public func minimize(_ window: AppWindow) {
+        guard let element = axWindow(window) else { return }
+        AX.set(element, kAXMinimizedAttribute, kCFBooleanTrue)
+    }
+
+    /// Toggles native full screen (the green button) for a window, bringing it forward first.
+    public func toggleFullScreen(_ window: AppWindow) {
+        guard let element = axWindow(window) else { return }
+        focus(window)
+        let isFull = AX.bool(element, "AXFullScreen") ?? false
+        AX.set(element, "AXFullScreen", isFull ? kCFBooleanFalse : kCFBooleanTrue)
+    }
+
     public func minimizeAll(pid: pid_t) {
         for element in axWindows(pid: pid) {
             AX.set(element, kAXMinimizedAttribute, kCFBooleanTrue)
