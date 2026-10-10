@@ -22,6 +22,8 @@
 	<string>__VERSION__</string>
 	<key>CFBundleVersion</key>
 	<string>__BUILD__</string>
+	<key>PierThemeGalleryURL</key>
+	<string>https://raw.githubusercontent.com/ChrisJDiMarco/Pier/main/themes/</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>

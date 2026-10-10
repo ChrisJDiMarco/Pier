@@ -1,0 +1,7 @@
+{
+  "id": "community.obsidian", "name": "Obsidian", "author": "Pier",
+  "background": "clearGlass", "tint": "#000000", "tintOpacity": 0.28, "cornerRadius": 0.24,
+  "borderColor": "#FFFFFF", "borderOpacity": 0.22, "borderWidth": 0.8, "shadowOpacity": 0.45, "shadowRadius": 26,
+  "indicator": "dot", "indicatorColor": "#FFFFFF", "widgetFill": "#000000", "widgetFillOpacity": 0.3,
+  "textColor": "#FFFFFF", "badgeColor": "#FF453A", "iconSize": 56, "iconSpacing": 16, "padding": 14
+}

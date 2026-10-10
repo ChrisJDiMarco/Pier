@@ -103,7 +103,12 @@ public final class PierStore: ObservableObject {
     }
 
     public func importTheme(from url: URL) throws -> Theme {
-        var imported = try JSONDecoder().decode(Theme.self, from: Data(contentsOf: url))
+        try importTheme(data: Data(contentsOf: url))
+    }
+
+    @discardableResult
+    public func importTheme(data: Data) throws -> Theme {
+        var imported = try JSONDecoder().decode(Theme.self, from: data)
         if Theme.builtIns.contains(where: { $0.id == imported.id }) || imported.id.isEmpty {
             imported.id = "user.\(UUID().uuidString)"
         }

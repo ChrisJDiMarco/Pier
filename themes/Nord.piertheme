@@ -1,0 +1,7 @@
+{
+  "id": "community.nord", "name": "Nord", "author": "Pier",
+  "background": "solid", "tint": "#2E3440", "tintOpacity": 0.9, "cornerRadius": 0.26,
+  "borderColor": "#88C0D0", "borderOpacity": 0.3, "borderWidth": 1, "shadowOpacity": 0.4, "shadowRadius": 22,
+  "indicator": "line", "indicatorColor": "#88C0D0", "widgetFill": "#4C566A", "widgetFillOpacity": 0.45,
+  "textColor": "#ECEFF4", "badgeColor": "#BF616A", "iconSize": 54, "iconSpacing": 12, "padding": 12
+}

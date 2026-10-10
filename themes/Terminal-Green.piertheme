@@ -1,0 +1,7 @@
+{
+  "id": "community.terminal-green", "name": "Terminal Green", "author": "Pier",
+  "background": "solid", "tint": "#050805", "tintOpacity": 0.94, "cornerRadius": 0.12,
+  "borderColor": "#33FF66", "borderOpacity": 0.55, "borderWidth": 1, "shadowOpacity": 0.5, "shadowRadius": 18,
+  "indicator": "glow", "indicatorColor": "#33FF66", "widgetFill": "#33FF66", "widgetFillOpacity": 0.08,
+  "textColor": "#7CFF9B", "badgeColor": "#33FF66", "iconSize": 50, "iconSpacing": 10, "padding": 10
+}

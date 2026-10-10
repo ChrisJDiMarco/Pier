@@ -1,0 +1,7 @@
+{
+  "id": "community.sakura", "name": "Sakura", "author": "Pier",
+  "background": "liquidGlass", "tint": "#FFD1DC", "tintOpacity": 0.38, "cornerRadius": 0.3,
+  "borderColor": "#FFFFFF", "borderOpacity": 0.7, "borderWidth": 1.2, "shadowOpacity": 0.2, "shadowRadius": 20,
+  "indicator": "dot", "indicatorColor": "#B0306A", "widgetFill": "#FFFFFF", "widgetFillOpacity": 0.32,
+  "textColor": "#5A1F38", "badgeColor": "#E0457B", "iconSize": 56, "iconSpacing": 16, "padding": 14
+}

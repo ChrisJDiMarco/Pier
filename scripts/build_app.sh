@@ -47,6 +47,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Pier"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 install -m 755 Resources/pier "$APP/Contents/Resources/pier"
+mkdir -p "$APP/Contents/Resources/Themes"
+cp themes/*.piertheme "$APP/Contents/Resources/Themes/"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD_NUMBER/" Resources/Info.plist > "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 
@@ -57,7 +59,10 @@ if [[ -z "$IDENTITY" ]]; then
 fi
 if [[ -n "$IDENTITY" ]]; then
   echo "==> Signing with: $IDENTITY"
-  codesign --force --options runtime --timestamp=none \
+  # Release builds need a secure timestamp for notarization; local builds skip the network round trip.
+  TIMESTAMP="--timestamp=none"
+  [[ "${PIER_RELEASE:-0}" == "1" ]] && TIMESTAMP="--timestamp"
+  codesign --force --options runtime $TIMESTAMP \
     --entitlements Resources/Pier.entitlements --sign "$IDENTITY" "$APP"
 else
   echo "==> No signing identity found; signing ad-hoc"

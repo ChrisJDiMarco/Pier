@@ -1,0 +1,7 @@
+{
+  "id": "community.frosted-mint", "name": "Frosted Mint", "author": "Pier",
+  "background": "blur", "tint": "#D8F5EA", "tintOpacity": 0.45, "cornerRadius": 0.5,
+  "borderColor": "#FFFFFF", "borderOpacity": 0.6, "borderWidth": 1, "shadowOpacity": 0.25, "shadowRadius": 24,
+  "indicator": "line", "indicatorColor": "#1E7A5A", "widgetFill": "#FFFFFF", "widgetFillOpacity": 0.3,
+  "textColor": "#163D30", "badgeColor": "#FF5A5F", "iconSize": 54, "iconSpacing": 14, "padding": 13
+}

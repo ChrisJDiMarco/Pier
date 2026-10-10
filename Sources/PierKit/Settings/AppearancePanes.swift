@@ -107,6 +107,7 @@ enum ThemeFiles {
 
 struct ThemesPane: View {
     @EnvironmentObject var store: PierStore
+    @ObservedObject private var gallery = ThemeGallery.shared
     private let columns = [GridItem(.adaptive(minimum: 200), spacing: 16)]
 
     var body: some View {
@@ -118,17 +119,60 @@ struct ThemesPane: View {
                     Text("Your Themes").font(.headline)
                     grid(store.userThemes, deletable: true)
                 }
+                communitySection
                 HStack {
                     Button("Import Theme…") { ThemeFiles.importTheme(store: store) }
                     Button("Open Themes Folder") { NSWorkspace.shared.open(PierPaths.themes) }
                     Spacer()
                 }
-                Text("Themes are small .piertheme files. Share them with anyone — double-click or import one to try it, or drop files into the Themes folder.")
+                Text("Themes are small .piertheme files. Share them with anyone: double-click or import one to try it, or add yours to the themes folder on GitHub with a pull request.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             .padding(20)
         }
         .onAppear { store.reloadUserThemes() }
+        .task { if gallery.status == .idle { await gallery.load() } }
+    }
+
+    @ViewBuilder private var communitySection: some View {
+        HStack {
+            Text("Community").font(.headline)
+            Spacer()
+            switch gallery.status {
+            case .loading: ProgressView().controlSize(.small)
+            case .offline: Text("Showing bundled themes").font(.caption).foregroundStyle(.secondary)
+            default: EmptyView()
+            }
+            Button("Refresh") { Task { await gallery.load() } }
+                .buttonStyle(.borderless)
+                .disabled(gallery.status == .loading)
+        }
+        LazyVGrid(columns: columns, spacing: 16) {
+            ForEach(gallery.themes) { theme in
+                let installed = store.userThemes.contains { $0.id == theme.id || $0.name == theme.name }
+                VStack(alignment: .leading, spacing: 6) {
+                    ThemePreview(theme: theme).frame(height: 78)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(theme.name).font(.system(size: 13, weight: .semibold))
+                            Text(theme.author).font(.system(size: 11)).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button(installed ? "Apply" : "Get") { install(theme) }
+                            .controlSize(.small)
+                    }
+                }
+            }
+        }
+    }
+
+    private func install(_ theme: Theme) {
+        if let existing = store.userThemes.first(where: { $0.id == theme.id || $0.name == theme.name }) {
+            store.apply(existing)
+            return
+        }
+        guard let data = try? JSONEncoder().encode(theme) else { return }
+        do { try store.importTheme(data: data) } catch { NSAlert(error: error).runModal() }
     }
 
     private func grid(_ themes: [Theme], deletable: Bool) -> some View {

@@ -1,5 +1,6 @@
-.build/
-build/
-.swiftpm/
 *.xcodeproj/xcuserdata/
 .DS_Store
+.build/
+.swiftpm/
+build/
+dist/

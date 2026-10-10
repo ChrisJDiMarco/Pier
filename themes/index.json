@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "themes": [
+    {
+      "file": "Frosted-Mint.piertheme",
+      "id": "community.frosted-mint",
+      "name": "Frosted Mint",
+      "author": "Pier"
+    },
+    {
+      "file": "Neon-Night.piertheme",
+      "id": "community.neon-night",
+      "name": "Neon Night",
+      "author": "Pier"
+    },
+    {
+      "file": "Nord.piertheme",
+      "id": "community.nord",
+      "name": "Nord",
+      "author": "Pier"
+    },
+    {
+      "file": "Obsidian.piertheme",
+      "id": "community.obsidian",
+      "name": "Obsidian",
+      "author": "Pier"
+    },
+    {
+      "file": "Sakura.piertheme",
+      "id": "community.sakura",
+      "name": "Sakura",
+      "author": "Pier"
+    },
+    {
+      "file": "Sunset-Prairie.piertheme",
+      "id": "community.sunset-prairie",
+      "name": "Sunset Prairie",
+      "author": "Pier"
+    },
+    {
+      "file": "Terminal-Green.piertheme",
+      "id": "community.terminal-green",
+      "name": "Terminal Green",
+      "author": "Pier"
+    }
+  ]
+}
