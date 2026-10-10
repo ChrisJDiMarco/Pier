@@ -63,6 +63,16 @@ enum DockMenus {
                     controller.store.update { $0.removing(item.id) }
                 }
             }
+        case .folderApp(let folderID, let ref):
+            buildAppMenu(menu, ref: ref, itemID: nil, controller: controller)
+            menu.addItem(.separator())
+            let locked = controller.settings.lockLayout
+            menu.add("Move to Dock", enabled: !locked) {
+                controller.store.update { $0.removingApp(ref, fromFolder: folderID, placeOutside: true) }
+            }
+            menu.add("Remove from Folder", enabled: !locked) {
+                controller.store.update { $0.removingApp(ref, fromFolder: folderID, placeOutside: false) }
+            }
         case .minimized(let w):
             menu.addHeader(w.app.name)
             menu.add("Restore “\(w.title)”") { WindowService.shared.focus(w.window) }
@@ -157,6 +167,26 @@ enum DockMenus {
         menu.add("Rename Folder…", enabled: !locked) {
             if let name = prompt(title: "Rename Folder", value: folder.name) {
                 store.update { $0.renamingFolder(id, to: name) }
+            }
+        }
+        menu.addSubmenu("Open As") { sub in
+            sub.add("Default (\(store.settings.folderStyle.title))", state: folder.style == nil) {
+                store.update { $0.settingFolderStyle(id, to: nil) }
+            }
+            sub.addItem(.separator())
+            for style in FolderStyle.allCases {
+                sub.add(style.title, state: folder.style == style) { store.update { $0.settingFolderStyle(id, to: style) } }
+            }
+        }
+        menu.addSubmenu("Color") { sub in
+            sub.add("None", state: folder.color == nil) { store.update { $0.settingFolderColor(id, to: nil) } }
+            sub.addItem(.separator())
+            for preset in AppFolder.colorPresets {
+                let item = ActionMenuItem(preset.name, state: folder.color == preset.hex ? .on : .off) {
+                    store.update { $0.settingFolderColor(id, to: preset.hex) }
+                }
+                item.image = NSImage.swatch(NSColor(hex: preset.hex) ?? .gray)
+                sub.addItem(item)
             }
         }
         menu.add("Ungroup", enabled: !locked) {
@@ -263,5 +293,18 @@ enum DockMenus {
         alert.addButton(withTitle: "Cancel")
         alert.window.initialFirstResponder = field
         return alert.runModal() == .alertFirstButtonReturn ? field.stringValue : nil
+    }
+}
+
+extension NSImage {
+    /// A small round color swatch for menus.
+    static func swatch(_ color: NSColor, diameter: CGFloat = 12) -> NSImage {
+        NSImage(size: CGSize(width: diameter, height: diameter), flipped: false) { rect in
+            color.setFill()
+            NSBezierPath(ovalIn: rect.insetBy(dx: 0.5, dy: 0.5)).fill()
+            NSColor.black.withAlphaComponent(0.2).setStroke()
+            NSBezierPath(ovalIn: rect.insetBy(dx: 0.5, dy: 0.5)).stroke()
+            return true
+        }
     }
 }

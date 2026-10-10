@@ -13,6 +13,8 @@ public struct DisplayEntry: Identifiable, Equatable {
         case item(DockItem)
         case running(RunningApp)
         case minimized(MinimizedWindow)
+        /// An app shown inline while its folder is expanded in the dock.
+        case folderApp(UUID, AppRef)
         case divider
         case gap
     }
@@ -24,6 +26,7 @@ public struct DisplayEntry: Identifiable, Equatable {
         switch kind {
         case .item(let item): return item.appRef
         case .running(let app): return app.ref
+        case .folderApp(_, let ref): return ref
         default: return nil
         }
     }
@@ -37,6 +40,7 @@ public struct DisplayEntry: Identifiable, Equatable {
         switch kind {
         case .item(let item): return item.displayName
         case .running(let app): return app.ref.name
+        case .folderApp(_, let ref): return ref.name
         case .minimized(let w): return w.title
         default: return ""
         }
@@ -46,7 +50,7 @@ public struct DisplayEntry: Identifiable, Equatable {
         switch kind {
         case .divider: return .divider
         case .gap: return .gap
-        case .running, .minimized: return .icon
+        case .running, .minimized, .folderApp: return .icon
         case .item(let item):
             switch item.content {
             case .widget(let w): return .widget(w)
@@ -58,6 +62,7 @@ public struct DisplayEntry: Identifiable, Equatable {
 
     static func runningID(_ ref: AppRef) -> String { "run:\(ref.key)" }
     static func minimizedID(_ w: MinimizedWindow) -> String { "min:\(w.id)" }
+    static func folderAppID(_ folder: UUID, _ ref: AppRef) -> String { "fapp:\(folder.uuidString):\(ref.key)" }
     static let dividerID = "divider:trailing"
     static let gapID = "gap"
 }
@@ -80,6 +85,8 @@ public final class DockController: ObservableObject {
     @Published public internal(set) var dropOntoID: String?
     @Published public private(set) var isRevealed = true
     @Published public private(set) var isHovering = false
+    /// The folder currently expanded inline in the dock, if any.
+    @Published public private(set) var expandedFolderID: UUID?
 
     let store = PierStore.shared
     let running = RunningAppsService.shared
@@ -101,6 +108,7 @@ public final class DockController: ObservableObject {
     private var bag = Set<AnyCancellable>()
     private var lastEdgeHit = Date.distantPast
     private var placement: (DockPosition, ScreenMode)?
+    private var collapseMonitor: Any?
 
     private init() {}
 
@@ -158,7 +166,14 @@ public final class DockController: ObservableObject {
 
         var list: [DisplayEntry] = layout.main
             .filter { $0.id != draggedID }
-            .map { DisplayEntry(id: $0.id.uuidString, kind: .item($0)) }
+            .flatMap { item -> [DisplayEntry] in
+                let tile = DisplayEntry(id: item.id.uuidString, kind: .item(item))
+                // An inline-expanded folder unfolds its apps right after its tile.
+                guard item.id == expandedFolderID, let folder = item.folder else { return [tile] }
+                return [tile] + folder.apps.map {
+                    DisplayEntry(id: DisplayEntry.folderAppID(item.id, $0), kind: .folderApp(item.id, $0))
+                }
+            }
 
         if settings.showRunningApps {
             let extras = running.apps.filter { app in
@@ -188,6 +203,10 @@ public final class DockController: ObservableObject {
             list.insert(DisplayEntry(id: DisplayEntry.gapID, kind: .gap), at: index)
         }
 
+        if let expanded = expandedFolderID, layout.allItems.first(where: { $0.id == expanded })?.folder == nil {
+            expandedFolderID = nil
+            installCollapseMonitor(false)
+        }
         guard list != entries else { return }
         if animated && settings.animationsEnabled {
             withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
@@ -234,6 +253,26 @@ public final class DockController: ObservableObject {
 
     func entry(_ id: String) -> DisplayEntry? { entries.first { $0.id == id } }
 
+    // MARK: Inline folders
+
+    func setExpandedFolder(_ id: UUID?) {
+        guard id != expandedFolderID else { return }
+        ClickLog.log.notice("inline folder \(id?.uuidString ?? "collapsed", privacy: .public)")
+        expandedFolderID = id
+        installCollapseMonitor(id != nil)
+        rebuildEntries(animated: true)
+    }
+
+    private func installCollapseMonitor(_ on: Bool) {
+        if let collapseMonitor { NSEvent.removeMonitor(collapseMonitor) }
+        collapseMonitor = nil
+        guard on else { return }
+        // A click in another app folds the folder back up; clicks in the dock are handled by the dock.
+        collapseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            MainActor.assumeIsolated { self?.setExpandedFolder(nil) }
+        }
+    }
+
     // MARK: Pointer tracking (polled so it also works during drags and over transparent areas)
 
     private func tick(dt: CGFloat) {
@@ -275,12 +314,13 @@ public final class DockController: ObservableObject {
         // Like the macOS Dock, an auto-hidden dock slides up while an app is asking for attention.
         let attention = AttentionService.shared
         let wantsAttention = !attention.bouncing.isEmpty || !attention.messages.isEmpty
-        let busy = inside || resting || wantsAttention || draggingPayload != nil || PopupController.shared.isShowing
+        let presenting = PopupController.shared.isShowing || expandedFolderID != nil
+        let busy = inside || resting || wantsAttention || presenting || draggingPayload != nil
             || window?.isTrackingMenu == true
         if busy {
             hideWork?.cancel()
             hideWork = nil
-            if !isRevealed && (inside || wantsAttention) { setRevealed(true) }
+            if !isRevealed && (inside || wantsAttention || presenting) { setRevealed(true) }
             return
         }
         if !isRevealed, let screen = window?.targetScreen, atEdge(mouse, of: screen) {

@@ -46,6 +46,8 @@ struct WellBackground: View {
     let theme: Theme
     let radius: CGFloat
     var lift: Double = 0
+    /// A folder's own color, washed over the theme's well.
+    var tint: Color?
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -54,8 +56,14 @@ struct WellBackground: View {
             .fill(LinearGradient(colors: [theme.color(theme.widgetFill, min(1, fill + 0.08)),
                                           theme.color(theme.widgetFill, max(0, fill - 0.06))],
                                  startPoint: .top, endPoint: .bottom))
-            .overlay(shape.strokeBorder(theme.color(theme.borderColor, theme.borderOpacity * 0.85),
-                                        lineWidth: max(0.8, theme.borderWidth)))
+            .overlay {
+                if let tint {
+                    shape.fill(LinearGradient(colors: [tint.opacity(0.42), tint.opacity(0.28)],
+                                              startPoint: .top, endPoint: .bottom))
+                }
+            }
+            .overlay(shape.strokeBorder((tint ?? theme.color(theme.borderColor)).opacity(
+                tint == nil ? theme.borderOpacity * 0.85 : 0.6), lineWidth: max(0.8, theme.borderWidth)))
     }
 }
 

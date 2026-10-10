@@ -37,15 +37,42 @@ public struct AppRef: Codable, Hashable, Sendable {
     }
 }
 
+/// How a folder opens when clicked.
+public enum FolderStyle: String, Codable, CaseIterable, Sendable, Identifiable {
+    case popover, inline, launchpad, fan
+    public var id: String { rawValue }
+    public var title: String {
+        switch self {
+        case .popover: return "Popover"
+        case .inline: return "Inline (expand in the dock)"
+        case .launchpad: return "Launchpad (centered grid)"
+        case .fan: return "Fan"
+        }
+    }
+}
+
 /// A user-made group of apps shown as a single tile.
 public struct AppFolder: Codable, Hashable, Sendable {
     public var name: String
     public var apps: [AppRef]
+    /// Hex tint for the tile; nil uses the theme's well color.
+    public var color: String?
+    /// Overrides the global "folders open as" setting; nil follows it.
+    public var style: FolderStyle?
 
-    public init(name: String, apps: [AppRef]) {
+    public init(name: String, apps: [AppRef], color: String? = nil, style: FolderStyle? = nil) {
         self.name = name
         self.apps = apps
+        self.color = color
+        self.style = style
     }
+
+    /// Preset tints offered in the folder menu.
+    public static let colorPresets: [(name: String, hex: String)] = [
+        ("Red", "#FF453A"), ("Orange", "#FF9F0A"), ("Yellow", "#FFD60A"), ("Green", "#30D158"),
+        ("Teal", "#40C8E0"), ("Blue", "#0A84FF"), ("Purple", "#BF5AF2"), ("Pink", "#FF375F"),
+        ("Graphite", "#8E8E93"),
+    ]
 }
 
 public enum WidgetKind: String, Codable, CaseIterable, Sendable, Identifiable {

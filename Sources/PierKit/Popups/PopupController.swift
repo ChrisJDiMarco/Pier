@@ -25,6 +25,7 @@ final class PopupController {
     private var hoverOwned = false
     private var anchor: CGRect = .zero
     private var position: DockPosition = .bottom
+    private var isCentered = false
     private var monitors: [Any] = []
     private var leaveWork: DispatchWorkItem?
     private let gap: CGFloat = 10
@@ -38,11 +39,13 @@ final class PopupController {
     func isShowing(_ k: PopupKind) -> Bool { kind == k }
 
     func show(_ kind: PopupKind, anchor: CGRect, position: DockPosition, theme: Theme,
-              hoverOwned: Bool = false, content: () -> AnyView) {
+              hoverOwned: Bool = false, chrome: Bool = true, content: () -> AnyView) {
         dismiss(animated: false)
         let view = content()
-        let chrome = PopupChrome(theme: theme) { view }
-        let hosting = FirstMouseHostingView(rootView: AnyView(chrome))
+        let wrapped: AnyView = chrome
+            ? AnyView(PopupChrome(theme: theme) { view })
+            : AnyView(view.padding(Self.shadowInset))
+        let hosting = FirstMouseHostingView(rootView: wrapped)
         hosting.sizingOptions = [.intrinsicContentSize]
         let size = hosting.fittingSize
 
@@ -66,6 +69,7 @@ final class PopupController {
         self.hoverOwned = hoverOwned
         self.anchor = anchor
         self.position = position
+        self.isCentered = false
         if hoverOwned { panel.orderFrontRegardless() } else { panel.makeKeyAndOrderFront(nil) }
         ClickLog.log.notice("popup shown \(String(describing: kind), privacy: .public) size=\(Int(size.width))x\(Int(size.height))")
         NSAnimationContext.runAnimationGroup { ctx in
@@ -75,10 +79,44 @@ final class PopupController {
         installMonitors()
     }
 
+    /// A full-screen, Launchpad-style presentation: content centered over a blurred, dimmed screen.
+    /// Clicking the backdrop or pressing Escape closes it.
+    func showCentered(_ kind: PopupKind, on screen: NSScreen?, theme: Theme, content: () -> AnyView) {
+        dismiss(animated: false)
+        guard let screen = screen ?? NSScreen.main else { return }
+        let view = content()
+        let hosting = FirstMouseHostingView(rootView: AnyView(LaunchpadContainer(theme: theme) { view }))
+        hosting.sizingOptions = []
+        let panel = PopupPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
+                               backing: .buffered, defer: false)
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.level = .popUpMenu
+        panel.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle, .fullScreenAuxiliary]
+        panel.isReleasedWhenClosed = false
+        panel.hidesOnDeactivate = false
+        panel.contentView = hosting
+        panel.appearance = theme.appearance
+        panel.setFrame(screen.frame, display: true)
+        panel.alphaValue = 0
+        self.panel = panel
+        self.kind = kind
+        self.hoverOwned = false
+        self.isCentered = true
+        panel.makeKeyAndOrderFront(nil)
+        ClickLog.log.notice("popup shown \(String(describing: kind), privacy: .public) centered")
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.2
+            panel.animator().alphaValue = 1
+        }
+        installMonitors()
+    }
+
     /// Keeps the popup sized to its content (e.g. when thumbnails load or a folder loses an app).
     func contentSizeChanged() {
         DispatchQueue.main.async { [weak self] in
-            guard let self, let panel = self.panel, let hosting = panel.contentView else { return }
+            guard let self, !self.isCentered, let panel = self.panel, let hosting = panel.contentView else { return }
             let target = self.frame(size: hosting.fittingSize, anchor: self.anchor, position: self.position)
             if target != panel.frame { panel.setFrame(target, display: true, animate: false) }
         }
@@ -167,7 +205,7 @@ struct PopupChrome<Content: View>: View {
         content()
             .padding(16)
             .background(
-                DockBackground(theme: popupTheme, radius: 22)
+                DockBackground(theme: theme.popupBackdrop, radius: 22)
             )
             .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in
                 PopupController.shared.contentSizeChanged()
@@ -175,21 +213,60 @@ struct PopupChrome<Content: View>: View {
             .padding(PopupController.shadowInset)   // room for the shadow
     }
 
+}
+
+extension Theme {
     /// Popups need a readable backdrop even when the dock itself is fully clear: a smoky glass behind
     /// light text, a milky one behind dark text.
-    private var popupTheme: Theme {
-        var t = theme
+    var popupBackdrop: Theme {
+        var t = self
         if t.background == .none || t.background == .clearGlass { t.background = .liquidGlass }
-        switch theme.prefersDarkAppearance {
+        switch prefersDarkAppearance {
         case true?:
             t.tint = "#000000"
             t.tintOpacity = 0.32
         case false?:
             t.tint = "#FFFFFF"
-            t.tintOpacity = max(0.3, theme.tintOpacity)
+            t.tintOpacity = max(0.3, tintOpacity)
         case nil:
             t.tintOpacity = max(t.tintOpacity, 0.1)
         }
         return t
     }
+}
+
+/// Full-screen backdrop for the Launchpad-style folder: blurs and dims everything behind it.
+struct LaunchpadContainer<Content: View>: View {
+    let theme: Theme
+    @ViewBuilder let content: () -> Content
+    @State private var appeared = false
+
+    var body: some View {
+        ZStack {
+            BackdropBlur()
+                .overlay(Color.black.opacity(0.22))
+                .contentShape(Rectangle())
+                .onTapGesture { PopupController.shared.dismiss() }
+            content()
+                .padding(36)
+                .background(DockBackground(theme: theme.popupBackdrop, radius: 36))
+                .scaleEffect(appeared ? 1 : 0.88)
+                .opacity(appeared ? 1 : 0)
+        }
+        .ignoresSafeArea()
+        .onAppear { withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) { appeared = true } }
+    }
+}
+
+/// A behind-window blur filling its frame (no rounded mask).
+struct BackdropBlur: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .fullScreenUI
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }

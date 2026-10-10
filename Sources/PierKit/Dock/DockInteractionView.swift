@@ -58,7 +58,10 @@ final class DockInteractionView: NSView, NSDraggingSource {
         didDrag = false
         controller.pressedID = mouseDownEntry
         if let id = mouseDownEntry, let start = mouseDownPoint { controller.pressBegan(id, at: start) }
-        if mouseDownEntry == nil { PopupController.shared.dismiss() }
+        if mouseDownEntry == nil {
+            PopupController.shared.dismiss()
+            controller.setExpandedFolder(nil)
+        }
         if event.modifierFlags.contains(.control), let id = mouseDownEntry {
             controller.pressedID = nil
             mouseDownEntry = nil

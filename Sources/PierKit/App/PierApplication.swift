@@ -65,7 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         // pier://bounce?app=… from scripts and agents (see `pier help`).
         for url in urls where url.scheme?.lowercased() == "pier" {
-            AttentionService.shared.handle(url)
+            PierURLRouter.handle(url)
         }
         var imported = 0
         for url in urls where url.isFileURL && ["piertheme", "json"].contains(url.pathExtension.lowercased()) {

@@ -13,6 +13,8 @@ struct DockRootView: View {
                 .frame(width: max(0, geo.background.width), height: max(0, geo.background.height))
                 .position(x: geo.background.midX, y: geo.background.midY)
 
+            InlineFolderBackdrop(geometry: geo, theme: theme, metrics: metrics)
+
             let placedByID = Dictionary(geo.elements.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             ForEach(controller.entries) { entry in
                 if let placed = placedByID[entry.id] {
@@ -101,6 +103,8 @@ struct EntryView: View {
             AppTileView(ref: app.ref, size: iconSide)
         case .minimized(let w):
             MinimizedTileView(minimized: w, size: iconSide)
+        case .folderApp(_, let ref):
+            AppTileView(ref: ref, size: iconSide)
         case .item(let item):
             switch item.content {
             case .app(let ref): AppTileView(ref: ref, size: iconSide)
@@ -167,6 +171,7 @@ struct RunningIndicators: View {
             let refs: [AppRef]
             switch entry.kind {
             case .running(let app): refs = [app.ref]
+            case .folderApp(_, let ref): refs = [ref]
             case .item(let item):
                 if let ref = item.appRef { refs = [ref] } else if let f = item.folder { refs = f.apps } else { return nil }
             default: return nil
@@ -278,11 +283,53 @@ struct AttentionBubbles: View {
             let keys: [String]
             switch entry.kind {
             case .running(let app): keys = [app.ref.key]
+            case .folderApp(_, let ref): keys = [ref.key]
             case .item(let item): keys = item.appRef.map { [$0.key] } ?? item.folder?.apps.map(\.key) ?? []
             default: return nil
             }
             guard let text = keys.lazy.compactMap({ attention.messages[$0] }).first else { return nil }
             return Bubble(id: entry.id, text: text, rect: placed.rect)
+        }
+    }
+}
+
+/// The tinted well that groups an inline-expanded folder's apps with its tile.
+struct InlineFolderBackdrop: View {
+    let geometry: DockGeometry
+    let theme: Theme
+    let metrics: DockMetrics
+    @EnvironmentObject var controller: DockController
+    @EnvironmentObject var store: PierStore
+
+    var body: some View {
+        if let id = controller.expandedFolderID, let rect = groupRect(id) {
+            let folder = store.layout.allItems.first { $0.id == id }?.folder
+            WellBackground(theme: theme, radius: min(rect.width, rect.height) * 0.28,
+                           tint: folder?.color.map { Color(hex: $0) })
+                .frame(width: rect.width, height: rect.height)
+                .transformEffect(CGAffineTransform(translationX: rect.minX, y: rect.minY))
+                .transition(.opacity)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private func groupRect(_ id: UUID) -> CGRect? {
+        let prefix = "fapp:\(id.uuidString):"
+        let rects = geometry.elements
+            .filter { $0.id == id.uuidString || $0.id.hasPrefix(prefix) }
+            .map(\.rect)
+        guard var union = rects.first else { return nil }
+        for r in rects.dropFirst() { union = union.union(r) }
+        // Span the resting dock depth so the group reads as one well even while icons magnify.
+        let bg = geometry.background, inset = metrics.padding * 0.45
+        let pad = metrics.spacing * 0.5 + 2
+        switch geometry.position {
+        case .bottom:
+            return CGRect(x: union.minX - pad, y: bg.minY + inset, width: union.width + pad * 2,
+                          height: bg.height - inset * 2)
+        case .left, .right:
+            return CGRect(x: bg.minX + inset, y: union.minY - pad, width: bg.width - inset * 2,
+                          height: union.height + pad * 2)
         }
     }
 }

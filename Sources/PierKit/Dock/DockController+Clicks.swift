@@ -33,6 +33,8 @@ extension DockController {
             if action == .contextMenu { return true }
             if PopupController.shared.isShowingWindows, action != .showWindows { PopupController.shared.dismiss() }
             perform(action, on: ref, entry: entry)
+            // Launching from an inline folder folds it back up, like closing a folder after picking an app.
+            if case .folderApp = entry.kind, trigger == .click { setExpandedFolder(nil) }
             return false
         }
 
@@ -133,18 +135,50 @@ extension DockController {
 
     func toggleFolder(_ id: UUID) {
         if PopupController.shared.isShowing(.folder(id)) { return PopupController.shared.dismiss() }
+        if expandedFolderID == id { return setExpandedFolder(nil) }
         openFolder(id)
     }
 
-    func openFolder(_ id: UUID) {
-        guard let anchor = screenRect(of: id.uuidString) else { return }
-        let view = FolderPopupView(folderID: id)
-            .environmentObject(store)
-            .environmentObject(running)
-            .environmentObject(IconService.shared)
-            .environmentObject(BadgeService.shared)
-        PopupController.shared.show(.folder(id), anchor: anchor, position: settings.position, theme: theme) {
-            AnyView(view)
+    func folderStyle(_ id: UUID) -> FolderStyle {
+        let folder = store.layout.allItems.first { $0.id == id }?.folder
+        let style = folder?.style ?? settings.folderStyle
+        // The fan only makes sense rising from a bottom dock; side docks get the popover instead.
+        return style == .fan && position.isVertical ? .popover : style
+    }
+
+    func openFolder(_ id: UUID, as override: FolderStyle? = nil) {
+        PopupController.shared.dismiss()
+        switch override ?? folderStyle(id) {
+        case .inline:
+            setExpandedFolder(id)
+        case .launchpad:
+            setExpandedFolder(nil)
+            let view = FolderPopupView(folderID: id, large: true)
+                .environmentObject(store)
+                .environmentObject(running)
+                .environmentObject(IconService.shared)
+                .environmentObject(BadgeService.shared)
+            PopupController.shared.showCentered(.folder(id), on: window?.targetScreen, theme: theme) { AnyView(view) }
+        case .fan:
+            setExpandedFolder(nil)
+            guard let anchor = screenRect(of: id.uuidString) else { return }
+            let view = FanFolderView(folderID: id)
+                .environmentObject(store)
+                .environmentObject(IconService.shared)
+                .environmentObject(BadgeService.shared)
+            PopupController.shared.show(.folder(id), anchor: anchor, position: position, theme: theme,
+                                        chrome: false) { AnyView(view) }
+        case .popover:
+            setExpandedFolder(nil)
+            guard let anchor = screenRect(of: id.uuidString) else { return }
+            let view = FolderPopupView(folderID: id)
+                .environmentObject(store)
+                .environmentObject(running)
+                .environmentObject(IconService.shared)
+                .environmentObject(BadgeService.shared)
+            PopupController.shared.show(.folder(id), anchor: anchor, position: position, theme: theme) {
+                AnyView(view)
+            }
         }
     }
 

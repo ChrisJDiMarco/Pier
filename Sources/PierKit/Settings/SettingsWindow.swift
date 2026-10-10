@@ -151,6 +151,9 @@ struct GeneralPane: View {
                     LabeledSlider(title: "Preview delay", value: $store.settings.previewDelay, range: 0.1...1.5,
                                   format: { String(format: "%.2fs", $0) })
                 }
+                Picker("Folders open as", selection: $store.settings.folderStyle) {
+                    ForEach(FolderStyle.allCases) { Text($0.title).tag($0) }
+                }
                 Stepper("Folder grid columns: \(store.settings.folderColumns)",
                         value: $store.settings.folderColumns, in: 2...8)
                 Toggle("Lock layout (prevent dragging and removing)", isOn: $store.settings.lockLayout)

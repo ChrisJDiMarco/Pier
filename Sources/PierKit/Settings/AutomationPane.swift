@@ -55,7 +55,7 @@ struct AutomationPane: View {
             } header: {
                 Text("URL scheme")
             } footer: {
-                Text("Actions: notify, bounce, badge, flash, clear. Options: app, text, color, message, times, until=opened, sticky=1.")
+                Text("Actions: notify, bounce, badge, flash, clear. Options: app, text, color, message, times, until=opened, sticky=1. Also: open?folder=Name&style=launchpad (popover, inline, launchpad, fan) and close.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }

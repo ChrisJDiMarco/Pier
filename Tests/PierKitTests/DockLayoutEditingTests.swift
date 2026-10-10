@@ -94,3 +94,25 @@ final class DockLayoutEditingTests: XCTestCase {
         XCTAssertEqual(noID.path, "/Applications/Safari.app", "trailing slashes are normalized")
     }
 }
+
+final class FolderStyleTests: XCTestCase {
+    private let a = AppRef(bundleID: "a", path: "/Applications/A.app", name: "A")
+    private let b = AppRef(bundleID: "b", path: "/Applications/B.app", name: "B")
+    private let c = AppRef(bundleID: "c", path: "/Applications/C.app", name: "C")
+
+    func testColorAndStyleSurviveEditsAndOldFilesStillDecode() throws {
+        let folder = DockItem(.folder(AppFolder(name: "F", apps: [a, b])))
+        var layout = DockLayout(main: [folder], trailing: [DockItem(.trash)])
+        layout = layout.settingFolderColor(folder.id, to: "#FF453A").settingFolderStyle(folder.id, to: .fan)
+        layout = layout.addingApp(c, toFolder: folder.id).renamingFolder(folder.id, to: "Tools")
+        let edited = try XCTUnwrap(layout.main.first?.folder)
+        XCTAssertEqual(edited.color, "#FF453A")
+        XCTAssertEqual(edited.style, .fan)
+        XCTAssertEqual(edited.apps.count, 3)
+
+        let legacy = #"{"name":"Old","apps":[]}"#
+        let decoded = try JSONDecoder().decode(AppFolder.self, from: Data(legacy.utf8))
+        XCTAssertNil(decoded.color)
+        XCTAssertNil(decoded.style)
+    }
+}

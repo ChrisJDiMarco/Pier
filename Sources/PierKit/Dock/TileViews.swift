@@ -128,7 +128,7 @@ struct FolderTileView: View {
         BounceContainer(active: !attention.bouncing.isDisjoint(with: keys), amplitude: size * 0.38,
                         position: store.settings.position) {
             ZStack {
-                WellBackground(theme: theme, radius: well * 0.26)
+                WellBackground(theme: theme, radius: well * 0.26, tint: folder.color.map { Color(hex: $0) })
                 LazyVGrid(columns: [GridItem(.fixed(cell), spacing: gap), GridItem(.fixed(cell))], spacing: gap) {
                     ForEach(Array(folder.apps.prefix(4).enumerated()), id: \.offset) { _, app in
                         Image(nsImage: icons.icon(for: app))

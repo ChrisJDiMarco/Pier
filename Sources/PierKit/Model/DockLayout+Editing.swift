@@ -104,6 +104,18 @@ public extension DockLayout {
         return replacing(folderID, with: .folder(folder))
     }
 
+    func settingFolderColor(_ folderID: UUID, to color: String?) -> DockLayout {
+        guard let loc = locate(folderID), var folder = items(in: loc.section)[loc.index].folder else { return self }
+        folder.color = color
+        return replacing(folderID, with: .folder(folder))
+    }
+
+    func settingFolderStyle(_ folderID: UUID, to style: FolderStyle?) -> DockLayout {
+        guard let loc = locate(folderID), var folder = items(in: loc.section)[loc.index].folder else { return self }
+        folder.style = style
+        return replacing(folderID, with: .folder(folder))
+    }
+
     func reorderingFolder(_ folderID: UUID, apps: [AppRef]) -> DockLayout {
         guard let loc = locate(folderID), var folder = items(in: loc.section)[loc.index].folder else { return self }
         folder.apps = apps
