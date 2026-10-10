@@ -82,3 +82,11 @@ final class PersistenceTests: XCTestCase {
         ["tile-data": ["file-data": ["_CFURLString": url, "_CFURLStringType": 15]]]
     }
 }
+
+final class ThemeAppearanceTests: XCTestCase {
+    func testTextColorDecidesAppearance() {
+        XCTAssertEqual(Theme.clear.prefersDarkAppearance, true, "white text reads as a dark theme")
+        XCTAssertEqual(Theme.meadow.prefersDarkAppearance, false, "dark text reads as a light theme")
+        XCTAssertNil(Theme.liquid.prefersDarkAppearance, "auto follows the system")
+    }
+}

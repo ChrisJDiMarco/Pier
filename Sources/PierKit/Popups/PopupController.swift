@@ -57,6 +57,7 @@ final class PopupController {
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         panel.contentView = hosting
+        panel.appearance = theme.appearance
         panel.setFrame(frame(size: size, anchor: anchor, position: position), display: true)
         panel.alphaValue = 0
 
@@ -174,11 +175,21 @@ struct PopupChrome<Content: View>: View {
             .padding(PopupController.shadowInset)   // room for the shadow
     }
 
-    /// Popups need a readable backdrop even when the dock itself is fully clear.
+    /// Popups need a readable backdrop even when the dock itself is fully clear: a smoky glass behind
+    /// light text, a milky one behind dark text.
     private var popupTheme: Theme {
         var t = theme
         if t.background == .none || t.background == .clearGlass { t.background = .liquidGlass }
-        t.tintOpacity = max(t.tintOpacity, 0.1)
+        switch theme.prefersDarkAppearance {
+        case true?:
+            t.tint = "#000000"
+            t.tintOpacity = 0.32
+        case false?:
+            t.tint = "#FFFFFF"
+            t.tintOpacity = max(0.3, theme.tintOpacity)
+        case nil:
+            t.tintOpacity = max(t.tintOpacity, 0.1)
+        }
         return t
     }
 }

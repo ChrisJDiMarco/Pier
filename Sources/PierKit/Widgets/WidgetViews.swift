@@ -13,15 +13,31 @@ struct WidgetView: View {
         ZStack {
             WellBackground(theme: theme, radius: radius, lift: hovered ? 0.1 : 0)
                 .animation(.easeOut(duration: 0.18), value: hovered)
-            switch kind {
-            case .clock: ClockWidget(size: size, theme: theme, settings: store.settings)
-            case .nowPlaying: NowPlayingWidget(size: size, theme: theme, compact: vertical)
-            case .weather: WeatherWidget(size: size, theme: theme, compact: vertical)
-            case .battery: BatteryWidget(size: size, theme: theme, compact: vertical)
+            Group {
+                switch kind {
+                case .clock: ClockWidget(size: size, theme: theme, settings: store.settings)
+                case .nowPlaying: NowPlayingWidget(size: size, theme: theme, compact: vertical)
+                case .weather: WeatherWidget(size: size, theme: theme, compact: vertical)
+                case .battery: BatteryWidget(size: size, theme: theme, compact: vertical)
+                }
             }
+            .modifier(LegibleText(theme: theme))
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+    }
+}
+
+/// Light text over clear glass gets a faint shadow so it stays readable over bright windows.
+struct LegibleText: ViewModifier {
+    let theme: Theme
+
+    func body(content: Content) -> some View {
+        if theme.prefersDarkAppearance == true {
+            content.shadow(color: .black.opacity(0.35), radius: 1.2, y: 0.5)
+        } else {
+            content
+        }
     }
 }
 

@@ -192,6 +192,7 @@ public final class DockController: ObservableObject {
     }
 
     private func applyAppearance(theme: Theme, settings: PierSettings) {
+        window?.appearance = theme.appearance
         let next = DockMetrics(theme: theme, magnification: settings.magnification ? settings.magnificationScale : 1)
         let moved = placement.map { $0.0 != settings.position || $0.1 != settings.screenMode } ?? true
         let changed = next != metrics || moved

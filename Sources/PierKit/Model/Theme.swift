@@ -101,6 +101,22 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
     }
 
     public var thickness: CGFloat { CGFloat(iconSize + padding * 2) }
+
+    /// Whether the theme reads as dark (light text) or light (dark text); nil follows the system ("auto"
+    /// or a mid-tone color). Drives the appearance of the dock and its popups so glass and system text
+    /// get the right contrast.
+    public var prefersDarkAppearance: Bool? {
+        guard textColor.lowercased() != "auto",
+              let c = NSColor(hex: textColor)?.usingColorSpace(.sRGB) else { return nil }
+        let luminance = 0.2126 * c.redComponent + 0.7152 * c.greenComponent + 0.0722 * c.blueComponent
+        if luminance > 0.6 { return true }
+        if luminance < 0.4 { return false }
+        return nil
+    }
+
+    public var appearance: NSAppearance? {
+        prefersDarkAppearance.map { NSAppearance(named: $0 ? .darkAqua : .aqua) } ?? nil
+    }
 }
 
 public extension Theme {
@@ -115,9 +131,11 @@ public extension Theme {
 
     static let liquid = Theme(id: "pier.liquid", name: "Liquid")
 
+    /// Clear glass with white text. Wells are smoky dark so the text stays readable over bright windows.
     static let clear = Theme(
         id: "pier.clear", name: "Crystal", background: .clearGlass, tintOpacity: 0.04,
-        borderOpacity: 0.5, shadowOpacity: 0.18, widgetFillOpacity: 0.2, textColor: "#FFFFFF"
+        borderOpacity: 0.5, shadowOpacity: 0.18, widgetFill: "#000000", widgetFillOpacity: 0.24,
+        textColor: "#FFFFFF"
     )
 
     static let prairie = Theme(
