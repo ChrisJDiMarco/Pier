@@ -31,7 +31,7 @@ final class DockLayoutEngineTests: XCTestCase {
         let geo = DockLayoutEngine.layout(elements: icons(7), metrics: m, position: .bottom, container: container,
                                           pointer: CGPoint(x: center.midX, y: center.midY))
         let scales = geo.elements.map(\.scale)
-        XCTAssertEqual(scales[3], 2, accuracy: 0.001)
+        XCTAssertEqual(scales[3], 2, accuracy: 0.05)
         XCTAssertGreaterThan(scales[2], scales[1])
         XCTAssertEqual(scales[2], scales[4], accuracy: 0.001, "symmetric falloff")
         XCTAssertEqual(scales[0], 1, accuracy: 0.05)
@@ -104,5 +104,34 @@ final class DockLayoutEngineTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(geo.background.minX, -0.5)
         XCTAssertLessThanOrEqual(geo.background.maxX, 1000.5)
         XCTAssertGreaterThan(geo.elements[2].scale, 1, "still magnifies a little")
+    }
+
+    func testPositionsMoveContinuouslyAcrossIconBoundaries() {
+        // Sweep the pointer in 0.25pt steps; no icon may jump, which is what made the old bulge look shaky.
+        let m = metrics(magnification: 1.8)
+        var previous: [CGFloat]?
+        var x: CGFloat = 300
+        while x < 700 {
+            let geo = DockLayoutEngine.layout(elements: icons(9), metrics: m, position: .bottom,
+                                              container: container, pointer: CGPoint(x: x, y: 170))
+            let mids = geo.elements.map(\.rect.midX)
+            if let previous {
+                let jump = zip(mids, previous).map { abs($0 - $1) }.max() ?? 0
+                XCTAssertLessThan(jump, 1.0, "pointer at \(x)")
+            }
+            previous = mids
+            x += 0.25
+        }
+    }
+
+    func testFullDockCapDoesNotDependOnPointer() {
+        // Total growth (the dock's width) must not change as the pointer moves along a full dock,
+        // otherwise every icon pulses.
+        let m = metrics(magnification: 2)
+        let widths = stride(from: CGFloat(300), to: 700, by: 7).map { x in
+            DockLayoutEngine.layout(elements: icons(18), metrics: m, position: .bottom, container: container,
+                                    pointer: CGPoint(x: x, y: 170)).background.width
+        }
+        XCTAssertLessThan((widths.max() ?? 0) - (widths.min() ?? 0), 0.01)
     }
 }

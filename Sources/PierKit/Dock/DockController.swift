@@ -88,7 +88,8 @@ public final class DockController: ObservableObject {
     private(set) var position: DockPosition = .bottom
     private(set) var screenMode: ScreenMode = .primary
     private(set) var containerSize: CGSize = .zero
-    private var pointer: CGPoint?
+    private var motion = MagnificationMotion()
+    private var frameDriver: FrameDriver?
     private var draggingPayload: DragPayload?
     private var dragGap: DropTarget?
     private var hideWork: DispatchWorkItem?
@@ -97,8 +98,6 @@ public final class DockController: ObservableObject {
     private var bag = Set<AnyCancellable>()
     private var lastEdgeHit = Date.distantPast
     private var placement: (DockPosition, ScreenMode)?
-    /// Fraction of the remaining distance the magnification moves per frame (60 Hz): ~100 ms to settle.
-    private let pointerEasing: CGFloat = 0.42
 
     private init() {}
 
@@ -115,11 +114,30 @@ public final class DockController: ObservableObject {
             .sink { [weak self] _ in self?.window?.reposition() }
             .store(in: &bag)
 
-        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.tick() }
+        // Per-frame work runs off the display's refresh (120 Hz on ProMotion) while the pointer is near
+        // the dock. Otherwise a 20 Hz timer handles auto-hide edges and wakes the display link.
+        if let view = window?.contentView {
+            frameDriver = FrameDriver(view: view) { [weak self] dt in
+                MainActor.assumeIsolated { self?.tick(dt: dt) }
+            }
+        }
+        let timer = Timer(timeInterval: 1.0 / 20.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.idleTick() }
         }
         RunLoop.main.add(timer, forMode: .common)
         tickTimer = timer
+    }
+
+    /// Called by the dock's tracking area the moment the pointer reaches it, and by the idle timer.
+    func wakeIfNear() {
+        guard let window, frameDriver?.isRunning == false else { return }
+        if window.frame.insetBy(dx: -24, dy: -24).contains(NSEvent.mouseLocation) { frameDriver?.resume() }
+    }
+
+    private func idleTick() {
+        guard frameDriver?.isRunning != true else { return }
+        wakeIfNear()
+        if frameDriver?.isRunning != true { tick(dt: 1.0 / 20.0) }
     }
 
     var settings: PierSettings { store.settings }
@@ -193,7 +211,13 @@ public final class DockController: ObservableObject {
 
     private func recomputeGeometry() {
         let elements = entries.map { LayoutElement(id: $0.id, kind: $0.elementKind) }
-        let next = DockLayoutEngine.layout(elements: elements, metrics: metrics, position: position,
+        // Magnification strength follows the spring; the wave is centered on the smoothed pointer.
+        var frameMetrics = metrics
+        frameMetrics.magnification = 1 + (metrics.magnification - 1) * motion.amount
+        let pointer = motion.amount > 0 ? motion.along.map { a in
+            position.isVertical ? CGPoint(x: 0, y: a) : CGPoint(x: a, y: 0)
+        } : nil
+        let next = DockLayoutEngine.layout(elements: elements, metrics: frameMetrics, position: position,
                                            container: containerSize, pointer: pointer)
         if next != geometry { geometry = next }
     }
@@ -202,31 +226,20 @@ public final class DockController: ObservableObject {
 
     // MARK: Pointer tracking (polled so it also works during drags and over transparent areas)
 
-    private func tick() {
+    private func tick(dt: CGFloat) {
         guard let window else { return }
         let mouse = NSEvent.mouseLocation
         let frame = window.frame
         let p = CGPoint(x: mouse.x - frame.minX, y: frame.maxY - mouse.y)
         let inWindow = frame.contains(mouse)
-        let inside = inWindow && isRevealed && geometry.isInsideDock(p, slop: isHovering ? 8 : 0)
+        let inside = inWindow && isRevealed && geometry.isInHoverZone(p, alreadyHovering: isHovering)
         let popupOpen = PopupController.shared.isShowing
 
-        let desired: CGPoint? = inside && !popupOpen ? p : nil
-        if inside != isHovering || (desired == nil) != (pointer == nil) {
-            withAnimation(settings.animationsEnabled ? .easeOut(duration: 0.16) : nil) {
-                isHovering = inside
-                pointer = desired
-                recomputeGeometry()
-            }
-        } else if let desired, let current = pointer {
-            // Ease the magnification wave toward the pointer instead of snapping to it each frame.
-            let now = geometry.along(current), target = geometry.along(desired)
-            if abs(target - now) > 0.2 {
-                let next = now + (target - now) * pointerEasing
-                pointer = position.isVertical ? CGPoint(x: desired.x, y: next) : CGPoint(x: next, y: desired.y)
-                recomputeGeometry()
-            }
-        }
+        if inside != isHovering { isHovering = inside }
+        let before = motion
+        let target = inside && !popupOpen && metrics.magnification > 1 ? geometry.along(p) : nil
+        motion.step(dt: settings.animationsEnabled ? dt : 1, pointer: target)
+        if motion != before { recomputeGeometry() }
 
         let hit = inside ? geometry.hit(p, spacing: metrics.spacing)?.id : nil
         if hit != hoveredID {
@@ -237,6 +250,10 @@ public final class DockController: ObservableObject {
         handleAutoHide(mouse: mouse, inside: inside)
         handleScreenFollow(mouse: mouse)
         PopupController.shared.trackPointer(mouse, dockHoveredID: hoveredID)
+
+        // Nothing left to animate and the pointer is away: stop the display link until it comes back.
+        let nearby = frame.insetBy(dx: -24, dy: -24).contains(mouse)
+        if !nearby && motion.isSettled && draggingPayload == nil { frameDriver?.pause() }
     }
 
     private func handleAutoHide(mouse: CGPoint, inside: Bool) {

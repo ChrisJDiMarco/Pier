@@ -22,7 +22,22 @@ final class DockInteractionView: NSView, NSDraggingSource {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    private var trackingArea: NSTrackingArea?
+
     override var isFlipped: Bool { true }
+
+    /// Wakes the display link the instant the pointer reaches the dock, without a system-wide mouse monitor.
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea { removeTrackingArea(trackingArea) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { controller.wakeIfNear() }
+    override func mouseMoved(with event: NSEvent) { controller.wakeIfNear() }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func hitTest(_ point: NSPoint) -> NSView? {

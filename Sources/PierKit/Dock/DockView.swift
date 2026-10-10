@@ -13,12 +13,27 @@ struct DockRootView: View {
                 .frame(width: max(0, geo.background.width), height: max(0, geo.background.height))
                 .position(x: geo.background.midX, y: geo.background.midY)
 
+            let placedByID = Dictionary(geo.elements.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             ForEach(controller.entries) { entry in
-                if let placed = geo.element(entry.id) {
-                    EntryView(entry: entry, placed: placed, metrics: metrics)
-                        .frame(width: placed.rect.width, height: placed.rect.height)
-                        .position(x: placed.rect.midX, y: placed.rect.midY)
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                if let placed = placedByID[entry.id] {
+                    if placed.kind == .icon || placed.kind == .gap {
+                        // Draw once at the largest magnified size, then scale on the GPU. The frame stays
+                        // constant while hovering, so icons are never re-rasterized mid-animation.
+                        let side = renderSide(for: placed, metrics: metrics)
+                        // Placed with render transforms (not layout), so sub-pixel motion isn't snapped to
+                        // the pixel grid: icons glide instead of stepping in half-point jumps.
+                        EntryView(entry: entry, placed: placed, metrics: metrics, renderSide: side)
+                            .frame(width: side, height: side)
+                            .scaleEffect(placed.rect.width / side)
+                            .transformEffect(CGAffineTransform(translationX: placed.rect.midX - side / 2,
+                                                               y: placed.rect.midY - side / 2))
+                            .transition(.scale(scale: 0.4).combined(with: .opacity))
+                    } else {
+                        EntryView(entry: entry, placed: placed, metrics: metrics)
+                            .frame(width: placed.rect.width, height: placed.rect.height)
+                            .position(x: placed.rect.midX, y: placed.rect.midY)
+                            .transition(.scale(scale: 0.4).combined(with: .opacity))
+                    }
                 }
             }
 
@@ -35,6 +50,12 @@ struct DockRootView: View {
         .frame(width: geo.container.width, height: geo.container.height, alignment: .topLeading)
         .offset(hiddenOffset(metrics: metrics))
         .opacity(controller.isRevealed ? 1 : 0)
+    }
+
+    /// Unmagnified (fitted) icon size times the maximum magnification, rounded so it's stable frame to frame.
+    private func renderSide(for placed: PlacedElement, metrics: DockMetrics) -> CGFloat {
+        let base = placed.rect.width / max(placed.scale, 0.001)
+        return (base * max(1, metrics.magnification)).rounded(.up)
     }
 
     private func isWidget(_ entry: DisplayEntry) -> Bool {
@@ -59,6 +80,8 @@ struct EntryView: View {
     let entry: DisplayEntry
     let placed: PlacedElement
     let metrics: DockMetrics
+    /// When set, the tile is drawn at this fixed size and scaled by its container.
+    var renderSide: CGFloat?
     @EnvironmentObject var controller: DockController
     @EnvironmentObject var store: PierStore
 
@@ -93,7 +116,7 @@ struct EntryView: View {
         }
     }
 
-    private var iconSide: CGFloat { min(placed.rect.width, placed.rect.height) }
+    private var iconSide: CGFloat { renderSide ?? min(placed.rect.width, placed.rect.height) }
 
     private var isWidget: Bool {
         if case .widget = placed.kind { return true }
@@ -127,7 +150,8 @@ struct RunningIndicators: View {
         let theme = store.theme
         ForEach(indicators(), id: \.id) { item in
             IndicatorMark(style: theme.indicator, color: theme.color(theme.indicatorColor), active: item.active)
-                .position(item.point)
+                .frame(width: 20, height: 10)
+                .transformEffect(CGAffineTransform(translationX: item.point.x - 10, y: item.point.y - 5))
                 .allowsHitTesting(false)
         }
     }
@@ -187,16 +211,20 @@ struct HoverLabel: View {
 
     private let gap: CGFloat = 12
     private let slot: CGFloat = 420
+    private let height: CGFloat = 30
 
     var body: some View {
-        switch position {
-        case .bottom:
-            bubble.frame(width: slot).position(x: rect.midX, y: rect.minY - gap - 11)
-        case .left:
-            bubble.frame(width: slot, alignment: .leading).position(x: rect.maxX + gap + slot / 2, y: rect.midY)
-        case .right:
-            bubble.frame(width: slot, alignment: .trailing).position(x: rect.minX - gap - slot / 2, y: rect.midY)
-        }
+        // Centered on `anchor` with a render transform, so it tracks the gliding icon without pixel steps.
+        let (anchor, alignment): (CGPoint, Alignment) = {
+            switch position {
+            case .bottom: return (CGPoint(x: rect.midX, y: rect.minY - gap - 11), .center)
+            case .left: return (CGPoint(x: rect.maxX + gap + slot / 2, y: rect.midY), .leading)
+            case .right: return (CGPoint(x: rect.minX - gap - slot / 2, y: rect.midY), .trailing)
+            }
+        }()
+        bubble
+            .frame(width: slot, height: height, alignment: alignment)
+            .transformEffect(CGAffineTransform(translationX: anchor.x - slot / 2, y: anchor.y - height / 2))
     }
 
     private var bubble: some View {

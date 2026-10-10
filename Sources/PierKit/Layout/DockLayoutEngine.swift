@@ -75,14 +75,6 @@ public enum DockLayoutEngine {
         }
     }
 
-    /// Magnification factor for an icon whose base center is `distance` points from the pointer.
-    public static func scale(distance: CGFloat, metrics m: DockMetrics) -> CGFloat {
-        guard m.magnification > 1 else { return 1 }
-        let radius = m.iconSize * m.influence
-        let t = min(abs(distance) / radius, 1)
-        return 1 + (m.magnification - 1) * (cos(.pi * t) + 1) / 2
-    }
-
     public static func layout(
         elements: [LayoutElement], metrics: DockMetrics, position: DockPosition,
         container: CGSize, pointer: CGPoint?
@@ -92,7 +84,7 @@ public enum DockLayoutEngine {
         let available = vertical ? container.height : container.width
         let base = elements.map { baseLength($0.kind, metrics: m, vertical: vertical) }
 
-        // Base (unmagnified) starts, measured from the dock's leading edge.
+        // Base (unmagnified) layout, measured from the dock's leading edge.
         var baseStarts: [CGFloat] = []
         var cursor = m.padding
         for (i, length) in base.enumerated() {
@@ -102,55 +94,59 @@ public enum DockLayoutEngine {
         let baseTotal = cursor + m.padding
         let baseOrigin = (available - baseTotal) / 2
 
-        // Magnified lengths.
+        // The bulge: scale(x) = 1 + extra * bump(x - u). Total growth is exactly extra * radius wherever the
+        // pointer is, so capping `extra` against the free room keeps a full dock on screen without the
+        // bulge pulsing as the pointer moves.
         let pointerAlong = pointer.map { vertical ? $0.y : $0.x }
-        let u = pointerAlong.map { $0 - baseOrigin }
-        var scales: [CGFloat] = elements.enumerated().map { i, el in
-            guard el.kind.magnifies, let u else { return 1 }
-            return scale(distance: u - (baseStarts[i] + base[i] / 2), metrics: m)
-        }
-        // Growth is linear in (scale - 1), so if magnifying would push the dock off screen,
-        // shrink every icon's extra size by the same factor (the macOS Dock does this when it's full).
-        let growth = zip(base, scales).reduce(CGFloat(0)) { $0 + $1.0 * ($1.1 - 1) }
+        let radius = m.iconSize * m.influence
+        var extra = max(0, m.magnification - 1)
         let room = available - baseTotal
-        if growth > 0, growth > room {
-            let factor = max(0, room) / growth
-            scales = scales.map { 1 + ($0 - 1) * factor }
+        if extra * radius > room { extra = max(0, room) / radius }
+        let bulge = Bulge(center: pointerAlong.map { $0 - baseOrigin } ?? 0, radius: radius,
+                          extra: pointerAlong == nil ? 0 : extra)
+
+        // Integrate the scale along the dock. Positions and sizes are integrals of one smooth curve, so they
+        // change continuously as the pointer moves: no kinks when crossing from one icon to the next.
+        // Widgets keep their size (the curve is flat over them); everything else, gaps included, grows.
+        var segments: [Segment] = []
+        var x: CGFloat = 0
+        func add(to end: CGFloat, magnifies: Bool) {
+            if end > x { segments.append(Segment(start: x, end: end, magnifies: magnifies)) }
+            x = max(x, end)
         }
-        let lengths = zip(base, scales).enumerated().map { i, pair in
-            elements[i].kind.magnifies ? pair.0 * pair.1 : pair.0
+        for (i, el) in elements.enumerated() {
+            add(to: baseStarts[i], magnifies: true)
+            add(to: baseStarts[i] + base[i], magnifies: el.kind.magnifies || el.kind == .divider)
         }
-        var starts: [CGFloat] = []
-        cursor = m.padding
-        for (i, length) in lengths.enumerated() {
-            starts.append(cursor)
-            cursor += length + (i < lengths.count - 1 ? m.spacing : 0)
-        }
-        let total = cursor + m.padding
+        add(to: baseTotal, magnifies: true)
+        func mapped(_ position: CGFloat) -> CGFloat { bulge.mapped(position, segments: segments) }
+
+        let starts = baseStarts.map(mapped)
+        let ends = zip(baseStarts, base).map { mapped($0 + $1) }
+        let total = mapped(baseTotal)
 
         // Keep the point under the cursor fixed while the dock grows around it (what the macOS Dock does).
         var origin = baseOrigin
-        if let u, let pointerAlong {
-            origin = pointerAlong - mapToMagnified(u, baseStarts: baseStarts, base: base, starts: starts,
-                                                   lengths: lengths, baseTotal: baseTotal, total: total)
+        if let pointerAlong, bulge.extra > 0 {
+            origin = pointerAlong - mapped(pointerAlong - baseOrigin)
             if total <= available { origin = origin.clamped(0, available - total) }
         }
 
         let crossStart = m.edgeMargin + m.padding
         let placed: [PlacedElement] = elements.enumerated().map { i, el in
-            let along = origin + starts[i]
-            let length = lengths[i]
+            let length = ends[i] - starts[i]
+            let scale = el.kind.magnifies && base[i] > 0 ? length / base[i] : 1
             let (cross, depth): (CGFloat, CGFloat)
             switch el.kind {
-            case .icon, .gap: (cross, depth) = (crossStart, m.iconSize * scales[i])
+            case .icon, .gap: (cross, depth) = (crossStart, m.iconSize * scale)
             // Widget "wells" are a little taller than icons, inset evenly from the dock's edges.
             case .widget: (cross, depth) = (m.edgeMargin + m.wellInset, m.thickness - m.wellInset * 2)
             case .divider: (cross, depth) = (crossStart + m.iconSize * 0.2, m.iconSize * 0.6)
             }
             return PlacedElement(id: el.id, kind: el.kind,
-                                 rect: rect(along: along, length: length, cross: cross, depth: depth,
+                                 rect: rect(along: origin + starts[i], length: length, cross: cross, depth: depth,
                                             position: position, container: container),
-                                 scale: scales[i])
+                                 scale: scale)
         }
         let background = rect(along: origin, length: total, cross: m.edgeMargin, depth: m.thickness,
                               position: position, container: container)
@@ -192,19 +188,42 @@ public enum DockLayoutEngine {
         }
     }
 
-    private static func mapToMagnified(_ u: CGFloat, baseStarts: [CGFloat], base: [CGFloat], starts: [CGFloat],
-                                       lengths: [CGFloat], baseTotal: CGFloat, total: CGFloat) -> CGFloat {
-        guard let first = baseStarts.first, u >= first else { return u }
-        for i in baseStarts.indices {
-            let bEnd = baseStarts[i] + base[i]
-            if u <= bEnd {
-                let t = base[i] > 0 ? (u - baseStarts[i]) / base[i] : 0
-                return starts[i] + t * lengths[i]
-            }
-            let nextStart = i + 1 < baseStarts.count ? baseStarts[i + 1] : baseTotal
-            if u < nextStart { return starts[i] + lengths[i] + (u - bEnd) }
+}
+
+/// A span of the dock in base (unmagnified) coordinates, and whether it grows under the bulge.
+struct Segment {
+    let start: CGFloat
+    let end: CGFloat
+    let magnifies: Bool
+}
+
+/// The magnification curve: a raised-cosine bump of half-width `radius` centered on the pointer.
+/// `area(a, b)` is its exact integral, so mapping base → magnified coordinates has no approximation error.
+struct Bulge {
+    let center: CGFloat
+    let radius: CGFloat
+    let extra: CGFloat
+
+    /// Cumulative integral of the unit bump from -infinity to `y` (0 ... radius).
+    private func cumulative(_ y: CGFloat) -> CGFloat {
+        if y <= -radius { return 0 }
+        if y >= radius { return radius }
+        return (y + radius) / 2 + radius / (2 * .pi) * sin(.pi * y / radius)
+    }
+
+    func area(_ a: CGFloat, _ b: CGFloat) -> CGFloat {
+        guard extra > 0, radius > 0 else { return 0 }
+        return extra * (cumulative(b - center) - cumulative(a - center))
+    }
+
+    /// Magnified position of base position `x`: length so far plus the bulge over the growing segments.
+    func mapped(_ x: CGFloat, segments: [Segment]) -> CGFloat {
+        var result = x
+        guard extra > 0 else { return result }
+        for segment in segments where segment.magnifies && segment.start < x {
+            result += area(segment.start, min(segment.end, x))
         }
-        return total - (baseTotal - u)
+        return result
     }
 }
 
@@ -223,6 +242,27 @@ public extension DockGeometry {
         return elements.first { el in
             el.kind != .divider && el.kind != .gap && probe(el.rect).contains(p)
         }
+    }
+
+    /// Hover test with hysteresis. Entering requires touching the dock or an icon; once hovering, the whole
+    /// bulge counts (including the empty space between magnified icons), so it never flickers off mid-glide.
+    func isInHoverZone(_ p: CGPoint, alreadyHovering: Bool, slop: CGFloat = 6) -> Bool {
+        guard alreadyHovering else { return isInsideDock(p) }
+        let icons = elements.filter { $0.kind == .icon }.map(\.rect)
+        let bg = background
+        let zone: CGRect
+        switch position {
+        case .bottom:
+            let top = icons.map(\.minY).min().map { Swift.min($0, bg.minY) } ?? bg.minY
+            zone = CGRect(x: bg.minX, y: top, width: bg.width, height: bg.maxY - top)
+        case .left:
+            let outer = icons.map(\.maxX).max().map { Swift.max($0, bg.maxX) } ?? bg.maxX
+            zone = CGRect(x: bg.minX, y: bg.minY, width: outer - bg.minX, height: bg.height)
+        case .right:
+            let outer = icons.map(\.minX).min().map { Swift.min($0, bg.minX) } ?? bg.minX
+            zone = CGRect(x: outer, y: bg.minY, width: bg.maxX - outer, height: bg.height)
+        }
+        return zone.insetBy(dx: -slop, dy: -slop).contains(p)
     }
 
     func isInsideDock(_ p: CGPoint, slop: CGFloat = 0) -> Bool {
