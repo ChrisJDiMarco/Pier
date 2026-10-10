@@ -47,6 +47,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &bag)
 
+        // Per-Space docks: follow the active desktop while the setting is on.
+        Publishers.CombineLatest(SpaceService.shared.$current, store.$settings.map(\.perSpaceDocks).removeDuplicates())
+            .receive(on: RunLoop.main)
+            .sink { [store] space, _ in
+                PopupController.shared.dismiss()
+                DockController.shared.setExpandedFolder(nil)
+                store.switchSpace(to: space)
+            }
+            .store(in: &bag)
+
         if !store.settings.didOnboard {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { OnboardingWindowController.shared.show() }
         }

@@ -85,6 +85,7 @@ public struct PierSettings: Codable, Hashable, Sendable {
     public var previewDelay = 0.55
     public var folderColumns = 4
     public var folderStyle: FolderStyle = .popover
+    public var perSpaceDocks = false
     public var clickBindings: [ClickTrigger: ClickAction] = PierSettings.defaultBindings
     public var clock24Hour = false
     public var clockShowSeconds = false
@@ -137,6 +138,7 @@ public struct PierSettings: Codable, Hashable, Sendable {
         previewDelay = v(.previewDelay, d.previewDelay).clamped(0, 3)
         folderColumns = Int(Double(v(.folderColumns, d.folderColumns)).clamped(2, 8))
         folderStyle = v(.folderStyle, d.folderStyle)
+        perSpaceDocks = v(.perSpaceDocks, d.perSpaceDocks)
         let rawBindings: [String: String] = v(.clickBindings, [:])
         var bindings = PierSettings.defaultBindings
         for (k, val) in rawBindings {
@@ -173,6 +175,7 @@ public struct PierSettings: Codable, Hashable, Sendable {
         try c.encode(previewDelay, forKey: .previewDelay)
         try c.encode(folderColumns, forKey: .folderColumns)
         try c.encode(folderStyle, forKey: .folderStyle)
+        try c.encode(perSpaceDocks, forKey: .perSpaceDocks)
         try c.encode(Dictionary(uniqueKeysWithValues: clickBindings.map { ($0.key.rawValue, $0.value.rawValue) }),
                      forKey: .clickBindings)
         try c.encode(clock24Hour, forKey: .clock24Hour)
@@ -187,7 +190,7 @@ public struct PierSettings: Codable, Hashable, Sendable {
     enum CodingKeys: String, CodingKey {
         case position, screenMode, autoHide, autoHideDelay, magnification, magnificationScale
         case showRunningApps, showMinimizedWindows, showLabels, showBadges, launchBounce, animationsEnabled, lockLayout
-        case hideSystemDock, restoreSystemDockOnQuit, windowPreviews, previewDelay, folderColumns, folderStyle
+        case hideSystemDock, restoreSystemDockOnQuit, windowPreviews, previewDelay, folderColumns, folderStyle, perSpaceDocks
         case clickBindings, clock24Hour, clockShowSeconds, weatherCity, weatherUseLocation
         case temperatureUnit, themeID, didOnboard
     }

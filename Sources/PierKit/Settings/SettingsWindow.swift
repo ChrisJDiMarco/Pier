@@ -160,6 +160,24 @@ struct GeneralPane: View {
             }
 
             Section {
+                Toggle("Use a different dock on each desktop", isOn: $store.settings.perSpaceDocks)
+                    .disabled(!SpaceService.shared.isAvailable)
+                if store.settings.perSpaceDocks {
+                    LabeledContent("Showing", value: store.activeSpace?.name ?? "Main dock")
+                    HStack {
+                        Button("Use Main Dock on This Desktop") { store.resetCurrentSpaceDock() }
+                            .disabled(store.activeSpace == nil)
+                        Button("Forget All Desktop Docks") { store.forgetAllSpaceDocks() }
+                    }
+                }
+            } header: {
+                Text("Desktops")
+            } footer: {
+                Text("Each desktop starts with your main dock. Changes you make there (apps, folders, widgets) stay with that desktop. Switch desktops and the dock follows.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+
+            Section {
                 Toggle("Hide the macOS Dock while Pier is running", isOn: $store.settings.hideSystemDock)
                 Toggle("Bring the macOS Dock back when Pier quits", isOn: $store.settings.restoreSystemDockOnQuit)
                     .disabled(!store.settings.hideSystemDock)

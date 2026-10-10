@@ -8,6 +8,7 @@ public enum PierPaths {
         return base.appendingPathComponent("Pier", isDirectory: true)
     }
     public static var layout: URL { support.appendingPathComponent("layout.json") }
+    public static var spaces: URL { support.appendingPathComponent("spaces.json") }
     public static var settings: URL { support.appendingPathComponent("settings.json") }
     public static var theme: URL { support.appendingPathComponent("theme.json") }
     public static var themes: URL { support.appendingPathComponent("Themes", isDirectory: true) }
@@ -33,6 +34,10 @@ public final class PierStore: ObservableObject {
     @Published public var settings: PierSettings { didSet { scheduleSave() } }
     @Published public var theme: Theme { didSet { scheduleSave() } }
     @Published public private(set) var userThemes: [Theme] = []
+    /// The desktop whose dock is showing, when per-Space docks are on.
+    @Published public private(set) var activeSpace: SpaceInfo?
+    /// Main dock + per-desktop docks. `layout` is always the one on screen.
+    private var spaceState: SpaceLayouts
 
     private var saveWork: DispatchWorkItem?
     private let encoder: JSONEncoder = {
@@ -43,10 +48,13 @@ public final class PierStore: ObservableObject {
 
     private init() {
         PierPaths.ensure()
-        layout = (Self.load(DockLayout.self, from: PierPaths.layout)?.sanitized())
+        let mainDock = (Self.load(DockLayout.self, from: PierPaths.layout)?.sanitized())
             ?? (SystemDockImporter.importLayout() ?? SystemDockImporter.fallbackLayout()).sanitized()
+        layout = mainDock
         settings = Self.load(PierSettings.self, from: PierPaths.settings) ?? PierSettings()
         theme = Self.load(Theme.self, from: PierPaths.theme) ?? .meadow
+        let perSpace = Self.load([String: DockLayout].self, from: PierPaths.spaces) ?? [:]
+        spaceState = SpaceLayouts(base: mainDock, spaces: perSpace.mapValues { $0.sanitized() })
         reloadUserThemes()
     }
 
@@ -121,6 +129,32 @@ public final class PierStore: ObservableObject {
 
     // MARK: Persistence
 
+    // MARK: Per-Space docks
+
+    /// Shows the dock for `space` (nil = the main dock), first saving the one on screen to its owner.
+    public func switchSpace(to space: SpaceInfo?) {
+        let target = settings.perSpaceDocks ? space : nil
+        guard target?.key != activeSpace?.key || (target == nil) != (activeSpace == nil) else { return }
+        spaceState = spaceState.storing(layout, for: activeSpace?.key)
+        activeSpace = target
+        let next = spaceState.layout(for: target?.key)
+        if next != layout { layout = next }
+    }
+
+    public var customizedSpaceCount: Int { spaceState.customizedCount }
+
+    /// Makes the current desktop use the main dock again.
+    public func resetCurrentSpaceDock() {
+        guard let key = activeSpace?.key else { return }
+        spaceState = spaceState.resetting(key)
+        layout = spaceState.base
+    }
+
+    public func forgetAllSpaceDocks() {
+        spaceState = SpaceLayouts(base: spaceState.storing(layout, for: activeSpace?.key).base)
+        layout = spaceState.base
+    }
+
     public func resetLayoutToSystemDock() {
         layout = (SystemDockImporter.importLayout() ?? SystemDockImporter.fallbackLayout()).sanitized()
     }
@@ -139,7 +173,11 @@ public final class PierStore: ObservableObject {
 
     private func saveNow() {
         do {
-            try write(layout, to: PierPaths.layout)
+            spaceState = spaceState.storing(layout, for: activeSpace?.key)
+            try write(spaceState.base, to: PierPaths.layout)
+            if !spaceState.spaces.isEmpty || FileManager.default.fileExists(atPath: PierPaths.spaces.path) {
+                try write(spaceState.spaces, to: PierPaths.spaces)
+            }
             try write(settings, to: PierPaths.settings)
             try write(theme, to: PierPaths.theme)
         } catch {
