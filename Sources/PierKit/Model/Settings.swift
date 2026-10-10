@@ -73,6 +73,7 @@ public struct PierSettings: Codable, Hashable, Sendable {
     public var magnification = true
     public var magnificationScale = 1.55
     public var showRunningApps = true
+    public var showMinimizedWindows = true
     public var showLabels = true
     public var showBadges = true
     public var launchBounce = true
@@ -123,6 +124,7 @@ public struct PierSettings: Codable, Hashable, Sendable {
         magnification = v(.magnification, d.magnification)
         magnificationScale = v(.magnificationScale, d.magnificationScale).clamped(1, 2.4)
         showRunningApps = v(.showRunningApps, d.showRunningApps)
+        showMinimizedWindows = v(.showMinimizedWindows, d.showMinimizedWindows)
         showLabels = v(.showLabels, d.showLabels)
         showBadges = v(.showBadges, d.showBadges)
         launchBounce = v(.launchBounce, d.launchBounce)
@@ -157,6 +159,7 @@ public struct PierSettings: Codable, Hashable, Sendable {
         try c.encode(magnification, forKey: .magnification)
         try c.encode(magnificationScale, forKey: .magnificationScale)
         try c.encode(showRunningApps, forKey: .showRunningApps)
+        try c.encode(showMinimizedWindows, forKey: .showMinimizedWindows)
         try c.encode(showLabels, forKey: .showLabels)
         try c.encode(showBadges, forKey: .showBadges)
         try c.encode(launchBounce, forKey: .launchBounce)
@@ -180,7 +183,7 @@ public struct PierSettings: Codable, Hashable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case position, screenMode, autoHide, autoHideDelay, magnification, magnificationScale
-        case showRunningApps, showLabels, showBadges, launchBounce, animationsEnabled, lockLayout
+        case showRunningApps, showMinimizedWindows, showLabels, showBadges, launchBounce, animationsEnabled, lockLayout
         case hideSystemDock, restoreSystemDockOnQuit, windowPreviews, previewDelay, folderColumns
         case clickBindings, clock24Hour, clockShowSeconds, weatherCity, weatherUseLocation
         case temperatureUnit, themeID, didOnboard

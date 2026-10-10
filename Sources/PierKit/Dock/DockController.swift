@@ -12,6 +12,7 @@ public struct DisplayEntry: Identifiable, Equatable {
     public enum Kind: Equatable {
         case item(DockItem)
         case running(RunningApp)
+        case minimized(MinimizedWindow)
         case divider
         case gap
     }
@@ -36,6 +37,7 @@ public struct DisplayEntry: Identifiable, Equatable {
         switch kind {
         case .item(let item): return item.displayName
         case .running(let app): return app.ref.name
+        case .minimized(let w): return w.title
         default: return ""
         }
     }
@@ -44,7 +46,7 @@ public struct DisplayEntry: Identifiable, Equatable {
         switch kind {
         case .divider: return .divider
         case .gap: return .gap
-        case .running: return .icon
+        case .running, .minimized: return .icon
         case .item(let item):
             switch item.content {
             case .widget(let w): return .widget(w)
@@ -55,6 +57,7 @@ public struct DisplayEntry: Identifiable, Equatable {
     }
 
     static func runningID(_ ref: AppRef) -> String { "run:\(ref.key)" }
+    static func minimizedID(_ w: MinimizedWindow) -> String { "min:\(w.id)" }
     static let dividerID = "divider:trailing"
     static let gapID = "gap"
 }
@@ -102,9 +105,12 @@ public final class DockController: ObservableObject {
     private init() {}
 
     public func start() {
-        Publishers.CombineLatest3(store.$layout, store.$settings, running.$apps)
+        Publishers.CombineLatest4(store.$layout, store.$settings, running.$apps, MinimizedWindowsService.shared.$windows)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.rebuildEntries(animated: true) }
+            .store(in: &bag)
+        store.$settings.map(\.showMinimizedWindows).removeDuplicates()
+            .sink { show in if show { MinimizedWindowsService.shared.start() } else { MinimizedWindowsService.shared.stop() } }
             .store(in: &bag)
         Publishers.CombineLatest(store.$theme, store.$settings)
             .receive(on: RunLoop.main)
@@ -169,8 +175,11 @@ public final class DockController: ObservableObject {
         }
 
         let trailing = layout.trailing.filter { $0.id != draggedID }
-        if !trailing.isEmpty {
+        // Minimized windows sit right after the divider, before stacks and the Trash (as in the macOS Dock).
+        let minimized = settings.showMinimizedWindows ? MinimizedWindowsService.shared.windows : []
+        if !trailing.isEmpty || !minimized.isEmpty {
             list.append(DisplayEntry(id: DisplayEntry.dividerID, kind: .divider))
+            list += minimized.map { DisplayEntry(id: DisplayEntry.minimizedID($0), kind: .minimized($0)) }
             list += trailing.map { DisplayEntry(id: $0.id.uuidString, kind: .item($0)) }
         }
 

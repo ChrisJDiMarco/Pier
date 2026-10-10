@@ -256,16 +256,41 @@ private final class MediaRemote {
         _ = sendCommand?(command, nil)
     }
 
+    /// macOS 15.4+ rejects third-party now-playing reads ("Operation not permitted"). After a few empty
+    /// answers in a row, stop asking for a while instead of hammering the daemon every poll.
+    private var consecutiveMisses = 0
+    private var pausedUntil = Date.distantPast
+    private let missLimit = 3
+    private let backoff: TimeInterval = 600
+
     func fetch(_ completion: @escaping @MainActor (Info?) -> Void) {
+        if Date() < pausedUntil {
+            DispatchQueue.main.async { MainActor.assumeIsolated { completion(nil) } }
+            return
+        }
+        let record: (Bool) -> Void = { [weak self] hit in
+            guard let self else { return }
+            if hit {
+                self.consecutiveMisses = 0
+            } else {
+                self.consecutiveMisses += 1
+                if self.consecutiveMisses >= self.missLimit {
+                    self.consecutiveMisses = 0
+                    self.pausedUntil = Date().addingTimeInterval(self.backoff)
+                }
+            }
+        }
         guard let getInfo else {
             DispatchQueue.main.async { MainActor.assumeIsolated { completion(nil) } }
             return
         }
         getInfo(DispatchQueue.main) { [getPID] raw in
             guard let dict = raw as? [String: Any], let title = dict["kMRMediaRemoteNowPlayingInfoTitle"] as? String, !title.isEmpty else {
+                record(false)
                 MainActor.assumeIsolated { completion(nil) }
                 return
             }
+            record(true)
             let artist = dict["kMRMediaRemoteNowPlayingInfoArtist"] as? String ?? ""
             let album = dict["kMRMediaRemoteNowPlayingInfoAlbum"] as? String ?? ""
             let duration = dict["kMRMediaRemoteNowPlayingInfoDuration"] as? Double ?? 0

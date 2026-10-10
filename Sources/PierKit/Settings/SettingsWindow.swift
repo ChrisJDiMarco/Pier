@@ -138,6 +138,7 @@ struct GeneralPane: View {
 
             Section("Content") {
                 Toggle("Show running apps that aren’t kept in the dock", isOn: $store.settings.showRunningApps)
+                Toggle("Show minimized windows", isOn: $store.settings.showMinimizedWindows)
                 Toggle("Show app names on hover", isOn: $store.settings.showLabels)
                 Toggle("Show notification badges", isOn: $store.settings.showBadges)
                 Picker("Window previews", selection: $store.settings.windowPreviews) {

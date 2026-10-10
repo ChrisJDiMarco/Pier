@@ -63,6 +63,12 @@ enum DockMenus {
                     controller.store.update { $0.removing(item.id) }
                 }
             }
+        case .minimized(let w):
+            menu.addHeader(w.app.name)
+            menu.add("Restore “\(w.title)”") { WindowService.shared.focus(w.window) }
+            menu.add("Close Window") { WindowService.shared.close(w.window) }
+            menu.addItem(.separator())
+            menu.add("Show All \(w.app.name) Windows") { AppActions.appExpose(w.app) }
         default:
             return dockMenu(controller: controller)
         }

@@ -98,6 +98,8 @@ struct EntryView: View {
         switch entry.kind {
         case .running(let app):
             AppTileView(ref: app.ref, size: iconSide)
+        case .minimized(let w):
+            MinimizedTileView(minimized: w, size: iconSide)
         case .item(let item):
             switch item.content {
             case .app(let ref): AppTileView(ref: ref, size: iconSide)

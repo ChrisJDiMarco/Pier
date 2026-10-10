@@ -267,6 +267,10 @@ extension DockController {
         if let i = trailing.firstIndex(where: { $0.id.uuidString == before }) {
             return mainOnly ? (.main, main.count) : (.trailing, i)
         }
+        if before.hasPrefix("min:") {
+            // Minimized windows lead the right-hand section.
+            return mainOnly ? (.main, main.count) : (.trailing, 0)
+        }
         if before.hasPrefix("run:") {
             // Running apps sit right after the last app/folder, so dropping before one lands there.
             let lastApp = main.lastIndex { $0.appRef != nil || $0.folder != nil }

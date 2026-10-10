@@ -38,6 +38,11 @@ extension DockController {
 
         // Non-app tiles only respond to plain clicks; scroll and modifiers are ignored.
         guard trigger == .click || trigger == .middleClick else { return false }
+        if case .minimized(let w) = entry.kind {
+            PopupController.shared.dismiss()
+            WindowService.shared.focus(w.window)
+            return false
+        }
         guard case .item(let item) = entry.kind else { return false }
         switch item.content {
         case .folder: toggleFolder(item.id)

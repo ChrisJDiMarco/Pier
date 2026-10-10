@@ -170,3 +170,48 @@ struct TrashTileView: View {
         return items?.nextObject() != nil
     }
 }
+
+/// A minimized window: its last known thumbnail (or a window placeholder) with the app icon in the corner.
+struct MinimizedTileView: View {
+    let minimized: MinimizedWindow
+    let size: CGFloat
+    @EnvironmentObject var icons: IconService
+    @State private var thumbnail: NSImage?
+
+    var body: some View {
+        let card = size * 0.86
+        ZStack(alignment: .bottomTrailing) {
+            Group {
+                if let thumbnail {
+                    Image(nsImage: thumbnail).resizable().aspectRatio(contentMode: .fit)
+                } else {
+                    RoundedRectangle(cornerRadius: card * 0.1, style: .continuous)
+                        .fill(Color(nsColor: .windowBackgroundColor))
+                        .overlay(alignment: .top) {
+                            Capsule().fill(Color.primary.opacity(0.12)).frame(height: card * 0.1).padding(card * 0.08)
+                        }
+                        .frame(width: card, height: card * 0.72)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: card * 0.08, style: .continuous))
+            .shadow(color: .black.opacity(0.22), radius: size * 0.04, y: size * 0.02)
+            .frame(width: size, height: size)
+
+            Image(nsImage: icons.icon(for: minimized.app))
+                .resizable()
+                .frame(width: size * 0.42, height: size * 0.42)
+                .shadow(color: .black.opacity(0.2), radius: 1.5, y: 1)
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel("\(minimized.title), minimized")
+        .task(id: minimized.id) {
+            if let cached = WindowService.shared.thumbnailCache[minimized.id] {
+                thumbnail = cached
+                return
+            }
+            let captured = await WindowService.shared.thumbnails(for: [minimized.window], maxDimension: 160,
+                                                                  includeMinimized: true)
+            thumbnail = captured[minimized.id]
+        }
+    }
+}

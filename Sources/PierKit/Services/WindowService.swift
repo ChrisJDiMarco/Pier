@@ -15,6 +15,8 @@ public struct AppWindow: Identifiable, Hashable {
 public final class WindowService {
     public static let shared = WindowService()
     private var cycleIndex: [pid_t: Int] = [:]
+    /// Last thumbnail captured per window, reused for minimized-window tiles.
+    private(set) var thumbnailCache: [CGWindowID: NSImage] = [:]
     private init() {}
 
     // MARK: Listing
@@ -75,11 +77,12 @@ public final class WindowService {
 
     public static var canCaptureScreen: Bool { CGPreflightScreenCaptureAccess() }
 
-    public func thumbnails(for windows: [AppWindow], maxDimension: CGFloat) async -> [CGWindowID: NSImage] {
+    public func thumbnails(for windows: [AppWindow], maxDimension: CGFloat,
+                           includeMinimized: Bool = false) async -> [CGWindowID: NSImage] {
         guard Self.canCaptureScreen, !windows.isEmpty,
               let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         else { return [:] }
-        let wanted = Set(windows.filter { !$0.isMinimized }.map(\.id))
+        let wanted = Set(windows.filter { includeMinimized || !$0.isMinimized }.map(\.id))
         var result: [CGWindowID: NSImage] = [:]
         for scWindow in content.windows where wanted.contains(scWindow.windowID) {
             let filter = SCContentFilter(desktopIndependentWindow: scWindow)
@@ -95,6 +98,8 @@ public final class WindowService {
                                                                                height: CGFloat(cg.height) / backing))
             }
         }
+        thumbnailCache.merge(result) { _, new in new }
+        if thumbnailCache.count > 200 { thumbnailCache = result }
         return result
     }
 
