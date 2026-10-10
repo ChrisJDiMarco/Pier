@@ -1,0 +1,20 @@
+{
+  "id": "community.neon-night",
+  "name": "Neon Night",
+  "author": "Pier",
+  "background": "solid",
+  "tint": "#0A0614",
+  "tintOpacity": 0.88,
+  "cornerRadius": 0.5,
+  "borderColor": "#FF2BD6",
+  "borderOpacity": 0.7,
+  "borderWidth": 1.5,
+  "shadowOpacity": 0.6,
+  "shadowRadius": 30,
+  "indicator": "glow",
+  "indicatorColor": "#2BF5FF",
+  "widgetFill": "#FF2BD6",
+  "widgetFillOpacity": 0.12,
+  "textColor": "#F4E9FF",
+  "badgeColor": "#FF2BD6"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "community.sunset-prairie",
+  "name": "Sunset Prairie",
+  "author": "Pier",
+  "background": "liquidGlass",
+  "tint": "#F4E7DA",
+  "tintOpacity": 0.32,
+  "cornerRadius": 0.3,
+  "borderColor": "#FFF6EC",
+  "borderOpacity": 0.55,
+  "indicatorColor": "#5A3A2A",
+  "widgetFillOpacity": 0.22,
+  "textColor": "#3B2A20"
+}
