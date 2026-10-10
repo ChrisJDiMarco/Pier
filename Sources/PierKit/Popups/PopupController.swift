@@ -96,7 +96,16 @@ final class PopupController {
         panel.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle, .fullScreenAuxiliary]
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
-        panel.contentView = hosting
+        // The blur must be the window's own content view (not embedded in SwiftUI) for macOS to blur the
+        // windows behind it.
+        let blur = NSVisualEffectView(frame: CGRect(origin: .zero, size: screen.frame.size))
+        blur.material = .hudWindow
+        blur.blendingMode = .behindWindow
+        blur.state = .active
+        hosting.frame = blur.bounds
+        hosting.autoresizingMask = [.width, .height]
+        blur.addSubview(hosting)
+        panel.contentView = blur
         panel.appearance = theme.appearance
         panel.setFrame(screen.frame, display: true)
         panel.alphaValue = 0
@@ -243,11 +252,11 @@ struct LaunchpadContainer<Content: View>: View {
 
     var body: some View {
         ZStack {
-            BackdropBlur()
-                .overlay(Color.black.opacity(0.22))
+            Color.black.opacity(0.12)
                 .contentShape(Rectangle())
                 .onTapGesture { PopupController.shared.dismiss() }
             content()
+                .fixedSize()
                 .padding(36)
                 .background(DockBackground(theme: theme.popupBackdrop, radius: 36))
                 .scaleEffect(appeared ? 1 : 0.88)
@@ -256,17 +265,4 @@ struct LaunchpadContainer<Content: View>: View {
         .ignoresSafeArea()
         .onAppear { withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) { appeared = true } }
     }
-}
-
-/// A behind-window blur filling its frame (no rounded mask).
-struct BackdropBlur: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .fullScreenUI
-        view.blendingMode = .behindWindow
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }
