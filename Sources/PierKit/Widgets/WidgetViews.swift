@@ -10,10 +10,7 @@ struct WidgetView: View {
         let theme = store.theme
         let radius = min(size.width, size.height) * 0.26
         ZStack {
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .fill(theme.color(theme.widgetFill, theme.widgetFillOpacity))
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .strokeBorder(.white.opacity(0.22), lineWidth: 0.6)
+            WellBackground(theme: theme, radius: radius)
             switch kind {
             case .clock: ClockWidget(size: size, theme: theme, settings: store.settings)
             case .nowPlaying: NowPlayingWidget(size: size, theme: theme, compact: vertical)
@@ -26,6 +23,23 @@ struct WidgetView: View {
     }
 }
 
+/// The frosted inset that holds widgets and folders: a soft top-lit fill with a crisp light rim.
+struct WellBackground: View {
+    let theme: Theme
+    let radius: CGFloat
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let fill = theme.widgetFillOpacity
+        shape
+            .fill(LinearGradient(colors: [theme.color(theme.widgetFill, min(1, fill + 0.08)),
+                                          theme.color(theme.widgetFill, max(0, fill - 0.06))],
+                                 startPoint: .top, endPoint: .bottom))
+            .overlay(shape.strokeBorder(theme.color(theme.borderColor, theme.borderOpacity * 0.85),
+                                        lineWidth: max(0.8, theme.borderWidth)))
+    }
+}
+
 // MARK: - Clock
 
 struct ClockWidget: View {
@@ -35,15 +49,14 @@ struct ClockWidget: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: settings.clockShowSeconds ? 1 : 5)) { context in
-            VStack(spacing: size.height * 0.02) {
+            VStack(spacing: size.height * 0.015) {
                 Text(timeString(context.date))
-                    .font(.system(size: size.height * (settings.clockShowSeconds ? 0.27 : 0.34),
-                                  weight: .semibold, design: .rounded))
+                    .font(.system(size: size.height * (settings.clockShowSeconds ? 0.27 : 0.33), weight: .bold))
                     .monospacedDigit()
                     .foregroundStyle(theme.text)
                 Text(dayString(context.date))
-                    .font(.system(size: size.height * 0.15, weight: .semibold, design: .rounded))
-                    .kerning(1)
+                    .font(.system(size: size.height * 0.13, weight: .semibold))
+                    .kerning(size.height * 0.025)
                     .foregroundStyle(theme.secondaryText)
             }
             .minimumScaleFactor(0.6)
@@ -86,55 +99,54 @@ struct NowPlayingWidget: View {
         .onDisappear { player.stop() }
     }
 
-    private var artSide: CGFloat { size.height * 0.72 }
+    private var artSide: CGFloat { size.height * 0.64 }
 
     private var artwork: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: artSide * 0.2, style: .continuous)
-                .fill(LinearGradient(colors: [.pink.opacity(0.7), .orange.opacity(0.7)],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+            RoundedRectangle(cornerRadius: artSide * 0.22, style: .continuous)
+                .fill(Color(hex: "#F4EFEA"))
             if let art = player.artwork {
                 Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
             } else {
-                Image(systemName: "music.note").font(.system(size: artSide * 0.42, weight: .semibold))
-                    .foregroundStyle(.white)
+                Image(systemName: "music.note").font(.system(size: artSide * 0.4, weight: .semibold))
+                    .foregroundStyle(theme.secondaryText)
             }
         }
         .frame(width: artSide, height: artSide)
-        .clipShape(RoundedRectangle(cornerRadius: artSide * 0.2, style: .continuous))
-        .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+        .clipShape(RoundedRectangle(cornerRadius: artSide * 0.22, style: .continuous))
+        .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
         .onTapGesture { player.openSourceApp() }
     }
 
     private var fullBody: some View {
-        HStack(spacing: size.height * 0.18) {
+        HStack(spacing: size.height * 0.14) {
             artwork
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: size.height * 0.02) {
                 Text(player.current?.title ?? "Not Playing")
-                    .font(.system(size: size.height * 0.2, weight: .semibold))
+                    .font(.system(size: size.height * 0.17, weight: .bold))
                     .foregroundStyle(theme.text)
-                Text(player.current?.artist ?? "Play something in Music or Spotify")
-                    .font(.system(size: size.height * 0.16, weight: .medium))
+                Text(player.current?.artist ?? "Music or Spotify")
+                    .font(.system(size: size.height * 0.135, weight: .medium))
                     .foregroundStyle(theme.secondaryText)
-                if player.current != nil {
-                    TimelineView(.periodic(from: .now, by: 0.5)) { context in
-                        ProgressBar(progress: progress(at: context.date), color: theme.text)
-                    }
-                    .frame(height: 3)
-                    .padding(.top, 3)
+                TimelineView(.periodic(from: .now, by: 0.5)) { context in
+                    ProgressBar(progress: progress(at: context.date), color: theme.text)
                 }
+                .frame(width: size.height * 1.3, height: max(2.5, size.height * 0.035))
+                .padding(.top, size.height * 0.05)
+                .opacity(player.current == nil ? 0.35 : 1)
             }
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: size.height * 0.08) {
-                control("backward.fill", scale: 0.2) { player.previous() }
-                control(player.current?.isPlaying == true ? "pause.fill" : "play.fill", scale: 0.27) {
+            HStack(spacing: size.height * 0.05) {
+                control("chevron.left", scale: 0.13) { player.previous() }
+                control(player.current?.isPlaying == true ? "pause.fill" : "play.fill", scale: 0.14) {
                     player.togglePlayPause()
                 }
-                control("forward.fill", scale: 0.2) { player.next() }
+                control("chevron.right", scale: 0.13) { player.next() }
             }
         }
-        .padding(.horizontal, size.height * 0.14)
+        .padding(.leading, (size.height - artSide) / 2)
+        .padding(.trailing, size.height * 0.1)
     }
 
     private var compactBody: some View {
@@ -153,13 +165,13 @@ struct NowPlayingWidget: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size.height * scale, weight: .semibold))
-                .foregroundStyle(theme.text)
-                .frame(width: size.height * 0.36, height: size.height * 0.5)
+                .foregroundStyle(theme.secondaryText)
+                .frame(width: size.height * 0.24, height: size.height * 0.4)
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
         .disabled(player.current == nil)
-        .opacity(player.current == nil ? 0.4 : 1)
+        .opacity(player.current == nil ? 0.5 : 1)
     }
 
     private func progress(at date: Date) -> Double {
@@ -175,8 +187,8 @@ struct ProgressBar: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Capsule().fill(color.opacity(0.18))
-                Capsule().fill(color.opacity(0.75)).frame(width: proxy.size.width * progress)
+                Capsule().fill(color.opacity(0.12))
+                Capsule().fill(color.opacity(0.85)).frame(width: proxy.size.width * progress)
             }
         }
     }

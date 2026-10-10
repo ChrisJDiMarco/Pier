@@ -98,11 +98,11 @@ struct DividerView: View {
     @EnvironmentObject var store: PierStore
 
     var body: some View {
-        let color = store.theme.color(store.theme.textColor, 0.22)
+        let color = store.theme.color(store.theme.textColor, 0.16)
         if vertical {
-            Rectangle().fill(color).frame(height: 1)
+            Capsule().fill(color).frame(height: 1.5)
         } else {
-            Rectangle().fill(color).frame(width: 1)
+            Capsule().fill(color).frame(width: 1.5)
         }
     }
 }

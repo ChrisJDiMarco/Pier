@@ -74,10 +74,10 @@ public enum WidgetKind: String, Codable, CaseIterable, Sendable, Identifiable {
     /// Width of the widget relative to the dock's icon size.
     public var widthFactor: CGFloat {
         switch self {
-        case .clock: return 1.55
-        case .nowPlaying: return 4.4
-        case .weather: return 2.3
-        case .battery: return 1.45
+        case .clock: return 1.34
+        case .nowPlaying: return 3.8
+        case .weather: return 2.2
+        case .battery: return 1.2
         }
     }
 

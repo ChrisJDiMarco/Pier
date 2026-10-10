@@ -46,7 +46,7 @@ public final class PierStore: ObservableObject {
         layout = (Self.load(DockLayout.self, from: PierPaths.layout)?.sanitized())
             ?? (SystemDockImporter.importLayout() ?? SystemDockImporter.fallbackLayout()).sanitized()
         settings = Self.load(PierSettings.self, from: PierPaths.settings) ?? PierSettings()
-        theme = Self.load(Theme.self, from: PierPaths.theme) ?? .liquid
+        theme = Self.load(Theme.self, from: PierPaths.theme) ?? .meadow
         reloadUserThemes()
     }
 

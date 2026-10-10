@@ -56,6 +56,8 @@ public struct DockMetrics: Equatable, Sendable {
     }
 
     public var thickness: CGFloat { iconSize + padding * 2 }
+    /// Distance from the dock's edge to a widget well.
+    public var wellInset: CGFloat { padding * 0.7 }
     public var dividerLength: CGFloat { 7 }
 
     /// Space the window needs perpendicular to the screen edge (magnified icons + label + margin).
@@ -103,9 +105,17 @@ public enum DockLayoutEngine {
         // Magnified lengths.
         let pointerAlong = pointer.map { vertical ? $0.y : $0.x }
         let u = pointerAlong.map { $0 - baseOrigin }
-        let scales: [CGFloat] = elements.enumerated().map { i, el in
+        var scales: [CGFloat] = elements.enumerated().map { i, el in
             guard el.kind.magnifies, let u else { return 1 }
             return scale(distance: u - (baseStarts[i] + base[i] / 2), metrics: m)
+        }
+        // Growth is linear in (scale - 1), so if magnifying would push the dock off screen,
+        // shrink every icon's extra size by the same factor (the macOS Dock does this when it's full).
+        let growth = zip(base, scales).reduce(CGFloat(0)) { $0 + $1.0 * ($1.1 - 1) }
+        let room = available - baseTotal
+        if growth > 0, growth > room {
+            let factor = max(0, room) / growth
+            scales = scales.map { 1 + ($0 - 1) * factor }
         }
         let lengths = zip(base, scales).enumerated().map { i, pair in
             elements[i].kind.magnifies ? pair.0 * pair.1 : pair.0
@@ -133,8 +143,9 @@ public enum DockLayoutEngine {
             let (cross, depth): (CGFloat, CGFloat)
             switch el.kind {
             case .icon, .gap: (cross, depth) = (crossStart, m.iconSize * scales[i])
-            case .widget: (cross, depth) = (crossStart, m.iconSize)
-            case .divider: (cross, depth) = (crossStart + m.iconSize * 0.14, m.iconSize * 0.72)
+            // Widget "wells" are a little taller than icons, inset evenly from the dock's edges.
+            case .widget: (cross, depth) = (m.edgeMargin + m.wellInset, m.thickness - m.wellInset * 2)
+            case .divider: (cross, depth) = (crossStart + m.iconSize * 0.2, m.iconSize * 0.6)
             }
             return PlacedElement(id: el.id, kind: el.kind,
                                  rect: rect(along: along, length: length, cross: cross, depth: depth,

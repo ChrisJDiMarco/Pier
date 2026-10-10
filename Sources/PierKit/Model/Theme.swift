@@ -104,6 +104,15 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
 }
 
 public extension Theme {
+    /// The default: milky white glass, dark text, roomy padding and widget wells.
+    static let meadow = Theme(
+        id: "pier.meadow", name: "Meadow", background: .liquidGlass, tint: "#FFFFFF", tintOpacity: 0.34,
+        cornerRadius: 0.24, borderColor: "#FFFFFF", borderOpacity: 0.72, borderWidth: 1.2,
+        shadowOpacity: 0.22, shadowRadius: 22, iconSize: 56, iconSpacing: 16, padding: 14, edgeMargin: 8,
+        indicator: .dot, indicatorColor: "#3A3A3C", widgetFill: "#FFFFFF", widgetFillOpacity: 0.3,
+        textColor: "#2C2C2E", badgeColor: "#FF3B30"
+    )
+
     static let liquid = Theme(id: "pier.liquid", name: "Liquid")
 
     static let clear = Theme(
@@ -143,7 +152,7 @@ public extension Theme {
         iconSize: 40, iconSpacing: 5, padding: 6, edgeMargin: 4
     )
 
-    static let builtIns: [Theme] = [.liquid, .clear, .prairie, .graphite, .midnight, .paper, .compact]
+    static let builtIns: [Theme] = [.meadow, .liquid, .clear, .prairie, .graphite, .midnight, .paper, .compact]
 }
 
 // MARK: - Colors

@@ -137,7 +137,14 @@ public final class DockController: ObservableObject {
             let extras = running.apps.filter { app in
                 !layout.isPinned(app.ref) && !(draggedRunning?.matches(app.ref) ?? false)
             }
-            list += extras.map { DisplayEntry(id: DisplayEntry.runningID($0.ref), kind: .running($0)) }
+            // Running apps join the apps, right after the last app or folder, ahead of any widgets.
+            let lastApp = list.lastIndex { entry in
+                guard case .item(let item) = entry.kind else { return false }
+                return item.appRef != nil || item.folder != nil
+            }
+            let insertAt = lastApp.map { $0 + 1 } ?? 0
+            list.insert(contentsOf: extras.map { DisplayEntry(id: DisplayEntry.runningID($0.ref), kind: .running($0)) },
+                        at: insertAt)
         }
 
         let trailing = layout.trailing.filter { $0.id != draggedID }
@@ -587,7 +594,11 @@ public final class DockController: ObservableObject {
         if let i = trailing.firstIndex(where: { $0.id.uuidString == before }) {
             return mainOnly ? (.main, main.count) : (.trailing, i)
         }
-        if before == DisplayEntry.dividerID, !mainOnly { return (.main, main.count) }
+        if before.hasPrefix("run:") {
+            // Running apps sit right after the last app/folder, so dropping before one lands there.
+            let lastApp = main.lastIndex { $0.appRef != nil || $0.folder != nil }
+            return (.main, lastApp.map { $0 + 1 } ?? 0)
+        }
         return (.main, main.count)
     }
 }

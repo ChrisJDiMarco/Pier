@@ -89,7 +89,7 @@ public struct PierSettings: Codable, Hashable, Sendable {
     public var weatherCity = ""
     public var weatherUseLocation = false
     public var temperatureUnit: TemperatureUnit = .fahrenheit
-    public var themeID = Theme.liquid.id
+    public var themeID = Theme.meadow.id
     public var didOnboard = false
 
     public init() {}

@@ -61,7 +61,7 @@ struct AppearancePane: View {
                     Button("Save as Theme…") { saveTheme() }
                     Button("Export…") { exportTheme(store.theme) }
                     Spacer()
-                    Button("Reset to Liquid") { store.apply(.liquid) }
+                    Button("Reset to Meadow") { store.apply(.meadow) }
                 }
             }
         }

@@ -63,18 +63,19 @@ struct BadgeView: View {
     let color: Color
 
     var body: some View {
-        let height = max(15, size * 0.34)
+        let height = max(15, size * 0.4)
+        let ring = max(1.5, height * 0.09)
         Text(text == "•" || text.isEmpty ? " " : text)
-            .font(.system(size: height * 0.62, weight: .semibold, design: .rounded))
+            .font(.system(size: height * 0.56, weight: .semibold))
             .monospacedDigit()
             .foregroundStyle(.white)
             .lineLimit(1)
-            .padding(.horizontal, height * 0.3)
+            .padding(.horizontal, height * 0.24)
             .frame(minWidth: height, minHeight: height)
             .background(Capsule().fill(color))
-            .overlay(Capsule().strokeBorder(.white.opacity(0.35), lineWidth: 0.5))
-            .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
-            .offset(x: height * 0.28, y: -height * 0.22)
+            .overlay(Capsule().strokeBorder(.white, lineWidth: ring))
+            .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
+            .offset(x: height * 0.3, y: -height * 0.3)
             .fixedSize()
             .transition(.scale.combined(with: .opacity))
     }
@@ -90,27 +91,25 @@ struct FolderTileView: View {
     var body: some View {
         let _ = icons.revision
         let theme = store.theme
-        let inset = size * 0.1
-        let cell = (size - inset * 2 - size * 0.06) / 2
-        RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-            .fill(theme.color(theme.widgetFill, max(0.14, theme.widgetFillOpacity + 0.06)))
-            .overlay(
-                RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-                    .strokeBorder(.white.opacity(0.28), lineWidth: 0.6)
-            )
-            .overlay {
-                LazyVGrid(columns: [GridItem(.fixed(cell), spacing: size * 0.06), GridItem(.fixed(cell))],
-                          spacing: size * 0.06) {
-                    ForEach(Array(folder.apps.prefix(4).enumerated()), id: \.offset) { _, app in
-                        Image(nsImage: icons.icon(for: app))
-                            .resizable()
-                            .interpolation(.high)
-                            .frame(width: cell, height: cell)
-                    }
+        // The folder well is drawn slightly larger than an app icon, matching widget wells.
+        let well = size * 1.13
+        let inset = well * 0.13
+        let gap = well * 0.07
+        let cell = (well - inset * 2 - gap) / 2
+        ZStack {
+            WellBackground(theme: theme, radius: well * 0.26)
+            LazyVGrid(columns: [GridItem(.fixed(cell), spacing: gap), GridItem(.fixed(cell))], spacing: gap) {
+                ForEach(Array(folder.apps.prefix(4).enumerated()), id: \.offset) { _, app in
+                    Image(nsImage: icons.icon(for: app))
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: cell, height: cell)
                 }
-                .padding(inset)
             }
-            .frame(width: size, height: size)
+            .padding(inset)
+        }
+        .frame(width: well, height: well)
+        .frame(width: size, height: size)
             .overlay(alignment: .topTrailing) {
                 if store.settings.showBadges, let total = combinedBadge {
                     BadgeView(text: total, size: size, color: theme.color(theme.badgeColor))

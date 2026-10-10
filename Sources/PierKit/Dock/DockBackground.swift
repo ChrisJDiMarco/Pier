@@ -33,7 +33,12 @@ struct DockBackground: View {
                 EmptyView()
             }
             if theme.borderWidth > 0 && theme.background != .none {
-                shape.strokeBorder(theme.color(theme.borderColor, theme.borderOpacity), lineWidth: theme.borderWidth)
+                // Rim light: brightest along the top edge, like light catching the glass.
+                shape.strokeBorder(
+                    LinearGradient(colors: [theme.color(theme.borderColor, theme.borderOpacity),
+                                            theme.color(theme.borderColor, theme.borderOpacity * 0.45)],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: theme.borderWidth)
             }
         }
         .allowsHitTesting(false)

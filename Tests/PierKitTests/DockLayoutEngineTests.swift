@@ -93,4 +93,16 @@ final class DockLayoutEngineTests: XCTestCase {
         XCTAssertLessThan(geo.elements[0].rect.width, 50)
         XCTAssertEqual(geo.background.maxY, 200 - 8, accuracy: 0.001, "still anchored to the edge")
     }
+
+    func testMagnificationNeverPushesAFullDockOffScreen() {
+        let m = metrics(magnification: 2)
+        let rest = DockLayoutEngine.layout(elements: icons(18), metrics: m, position: .bottom,
+                                           container: container, pointer: nil)
+        let p = CGPoint(x: rest.elements[2].rect.midX, y: rest.elements[2].rect.midY)
+        let geo = DockLayoutEngine.layout(elements: icons(18), metrics: m, position: .bottom,
+                                          container: container, pointer: p)
+        XCTAssertGreaterThanOrEqual(geo.background.minX, -0.5)
+        XCTAssertLessThanOrEqual(geo.background.maxX, 1000.5)
+        XCTAssertGreaterThan(geo.elements[2].scale, 1, "still magnifies a little")
+    }
 }
