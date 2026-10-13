@@ -1,8 +1,15 @@
+<p align="center"><img src="docs/hero.jpg" alt="Pier, a customizable replacement for the macOS Dock, showing folders, a clock widget and a Now Playing mini player"></p>
+
+<p align="center">
+  <a href="https://github.com/ChrisJDiMarco/Pier/releases"><img alt="Download" src="https://img.shields.io/badge/download-Pier.dmg-0A84FF?style=flat-square&logo=apple&logoColor=white"></a>
+  <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-111111?style=flat-square&logo=apple&logoColor=white">
+  <img alt="Swift" src="https://img.shields.io/badge/Swift-native-F05138?style=flat-square&logo=swift&logoColor=white">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-34C759?style=flat-square"></a>
+</p>
+
 # Pier
 
 A replacement for the macOS Dock that you can actually customize. Native Swift and AppKit, no Electron, no account, no telemetry. Free and MIT licensed.
-
-<p align="center"><img src="docs/icon.png" width="160" alt="Pier icon"></p>
 
 The built-in Dock lets you change its size, position and magnification. Pier lets you change everything else.
 
