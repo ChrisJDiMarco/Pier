@@ -13,10 +13,28 @@ public final class IconService: ObservableObject {
     private let cache = NSCache<NSString, NSImage>()
     private var overrides: [String: String]
     private var overridesURL: URL { PierPaths.support.appendingPathComponent("icons.json") }
+    private var launchObserver: NSObjectProtocol?
 
     private init() {
         let url = PierPaths.support.appendingPathComponent("icons.json")
         overrides = (try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
+        // An app's icon can change on disk (updated bundle, new icon pasted in Finder); re-read it each launch.
+        launchObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            MainActor.assumeIsolated {
+                guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                      let ref = app.bundleURL.flatMap(AppRef.init(url:)) else { return }
+                self?.invalidate(ref)
+            }
+        }
+    }
+
+    /// Drops the cached icon for an app so the next draw re-reads it from disk.
+    public func invalidate(_ ref: AppRef) {
+        cache.removeObject(forKey: ref.key as NSString)
+        cache.removeObject(forKey: "path:\(ref.path)" as NSString)
+        revision += 1
     }
 
     public func icon(for ref: AppRef) -> NSImage {
